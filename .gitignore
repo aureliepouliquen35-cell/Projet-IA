@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# exception : modèle public, valeurs fictives uniquement
+!.env.example
 
 # vercel
 .vercel

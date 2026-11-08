@@ -1,26 +1,174 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Pas de mode sombre en version 1 (DESIGN.md, D-H4).
+ * Les composants shadcn/ui contiennent des classes `dark:` : on les rattache à
+ * une classe `.dark` que l'application ne pose jamais, pour qu'elles ne
+ * s'activent pas selon le réglage du système.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Tokens de DESIGN.md (AD-19, UX-DR1) : déclarés une seule fois ici.
+ * Les composants utilisent uniquement les classes qui en découlent
+ * (`bg-primary`, `text-text-muted`, `rounded-md`, `shadow-soft`…),
+ * jamais de couleur écrite en dur.
+ * `static` : toutes les variables sont publiées, même si aucune classe ne
+ * les utilise encore.
+ */
+@theme static {
+  /* Les couleurs par défaut de Tailwind sont retirées : seules celles de
+     DESIGN.md existent. */
+  --color-*: initial;
+
+  /* ---- Couleurs : marque ---- */
+  --color-primary: #1e3a8a;
+  --color-primary-hover: #1e40af;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #eef2ff;
+  --color-focus-ring: #2563eb;
+
+  /* ---- Couleurs : accent violet améthyste ----
+     Exposé sous le nom `accent-nova` : le nom `accent` est utilisé par
+     shadcn/ui pour le survol des menus (voir plus bas). Jamais dans un bouton,
+     un badge ni un statut. */
+  --color-accent-nova: #6d28d9;
+  --color-accent-nova-soft: #f5f3ff;
+  --color-accent-nova-light: #c4b5fd;
+
+  /* ---- Couleurs : surfaces et texte ---- */
+  --color-background: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-subtle: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-input: #8792a2;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-subtle: #64748b;
+
+  /* ---- Couleurs : retours ---- */
+  --color-danger: #b91c1c;
+  --color-danger-foreground: #ffffff;
+  --color-danger-soft: #fee2e2;
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+
+  /* ---- Couleurs : statuts et priorité (toujours avec un libellé) ---- */
+  --color-status-nouvelle-bg: #dbeafe;
+  --color-status-nouvelle-fg: #1e40af;
+  --color-status-en-cours-bg: #fef3c7;
+  --color-status-en-cours-fg: #92400e;
+  --color-status-traitee-bg: #dcfce7;
+  --color-status-traitee-fg: #166534;
+  --color-urgent-bg: #fee2e2;
+  --color-urgent-fg: #991b1b;
+  --color-inactive-bg: #f1f5f9;
+  --color-inactive-fg: #475569;
+
+  /* ---- Noms attendus par shadcn/ui, reliés aux tokens ci-dessus ---- */
+  --color-foreground: var(--color-text);
+  --color-card: var(--color-background);
+  --color-card-foreground: var(--color-text);
+  --color-popover: var(--color-background);
+  --color-popover-foreground: var(--color-text);
+  --color-secondary: var(--color-surface-subtle);
+  --color-secondary-foreground: var(--color-text);
+  --color-muted: var(--color-surface-subtle);
+  --color-muted-foreground: var(--color-text-muted);
+  /* `accent` de shadcn/ui = survol des menus : gris, jamais violet. */
+  --color-accent: var(--color-surface-subtle);
+  --color-accent-foreground: var(--color-text);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-danger-foreground);
+  --color-input: var(--color-border-input);
+  --color-ring: var(--color-focus-ring);
+
+  /* ---- Typographie ---- */
+  --font-sans:
+    var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --font-heading: var(--font-sans);
+
+  --text-page-title: 24px;
+  --text-page-title--line-height: 1.3;
+  --text-page-title--letter-spacing: -0.01em;
+  --text-page-title--font-weight: 600;
+
+  --text-section-title: 18px;
+  --text-section-title--line-height: 1.4;
+  --text-section-title--font-weight: 600;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 1.45;
+
+  --text-label: 14px;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+
+  --text-caption: 13px;
+  --text-caption--line-height: 1.4;
+
+  --text-counter: 32px;
+  --text-counter--line-height: 1.1;
+  --text-counter--font-weight: 700;
+
+  /* Nom du logo (« Nova Services »). */
+  --text-wordmark: 17px;
+  --text-wordmark--line-height: 1.2;
+  --text-wordmark--letter-spacing: -0.01em;
+
+  /* Références (NOVA-2026-0042) : à utiliser avec `font-mono`. */
+  --text-reference: 14px;
+  --text-reference--letter-spacing: 0.01em;
+  --text-reference--font-weight: 500;
+
+  /* ---- Coins ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* ---- Ombres ---- */
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.05);
+  --shadow-primary: 0 1px 2px rgba(30, 58, 138, 0.25), 0 6px 16px rgba(30, 58, 138, 0.18);
+  --shadow-toast: 0 8px 20px rgba(15, 23, 42, 0.3);
+  --shadow-dialog: 0 10px 30px rgba(15, 23, 42, 0.18);
+
+  /* ---- Mise en page (l'échelle de 4 px est celle de Tailwind) ---- */
+  --spacing-control: 44px;
+  --spacing-gutter-mobile: 16px;
+  --spacing-gutter-desktop: 32px;
+  --spacing-sidebar: 240px;
+  --container-form: 560px;
+  --container-content: 1200px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply bg-background text-body text-foreground antialiased;
+  }
+
+  /* Icônes lucide-react au trait de 1,75 px (DESIGN.md, icon). */
+  svg.lucide {
+    stroke-width: 1.75px;
+  }
+
+  /* Contour visible au clavier, jamais supprimé (DESIGN.md, focus-outline). */
+  :focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
 }

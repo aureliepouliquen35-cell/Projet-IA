@@ -1,0 +1,12 @@
+# Réglages de gitleaks (détection de secrets, AD-15) : `npm run secrets`.
+# On garde toutes les règles par défaut et on n'écarte que les faux positifs
+# connus, de la façon la plus étroite possible.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Empreintes SHA-256 des fichiers dans le manifeste BMAD : ce ne sont pas des secrets"
+condition = "AND"
+paths = ['''^_bmad/_config/files-manifest\.csv$''']
+regexes = ['''^[0-9a-f]{64}$''']

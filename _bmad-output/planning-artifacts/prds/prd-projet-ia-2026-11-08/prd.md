@@ -684,13 +684,13 @@ Le **MVP** (*Minimum Viable Product*, ou « produit minimum viable ») est la pr
 
 ## 11. Questions ouvertes
 
-1. **Hébergement et adresse en ligne :** quel hébergeur, et quel nom de domaine ? → à trancher lors de l'**architecture**.
-2. **Sauvegardes :** la solution qui héberge la base de données fournit-elle les sauvegardes de NFR-7 ? Sinon, il faut prévoir un export programmé → **architecture** (voir [addendum.md](addendum.md), §B).
+1. **Hébergement et adresse en ligne :** ✅ **tranchée par l'architecture** (8 novembre 2026) : Vercel (offre gratuite) et Supabase (offre gratuite), sans nom de domaine, avec une adresse en `.vercel.app`. Voir [architecture.md](../../architecture/architecture-projet-ia-2026-11-08/architecture.md), §8.
+2. **Sauvegardes :** ✅ **tranchée par l'architecture** : l'offre gratuite de Supabase ne garantit pas de sauvegarde ; un export chiffré est fait chaque nuit par GitHub Actions et gardé 7 jours (architecture, AD-18).
 3. **Interlocuteurs du support :** dans le scénario Nova Services, qui assure le niveau 1 et le niveau 2 ? Pour le challenge, des rôles fictifs suffisent → à préciser lors de la rédaction de la documentation *Support* (NFR-9).
 4. **Durée de conservation de 3 ans :** validée pour le challenge. Dans une vraie entreprise, elle serait à confirmer avec le référent RGPD.
-5. **Consultation des logs :** dans l'espace interne (réservée à l'administrateur), ou dans l'outil de l'hébergeur (réservée au support de niveau 2) ? Le PRD suppose la seconde option → **architecture**.
+5. **Consultation des logs :** ✅ **tranchée par l'architecture** : les logs sont une table de la base, consultée et filtrée par le support de niveau 2 dans le tableau de bord de Supabase ; aucun écran n'est ajouté à l'espace interne (architecture, AD-13).
 
-*Aucune de ces questions ne bloque la suite : chacune a un responsable et un moment où elle sera tranchée.*
+*Aucune des questions restantes (3 et 4) ne bloque la suite : chacune a un responsable et un moment où elle sera tranchée.*
 
 ---
 

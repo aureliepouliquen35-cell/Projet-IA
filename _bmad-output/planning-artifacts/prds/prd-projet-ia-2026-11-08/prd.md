@@ -435,6 +435,7 @@ L'administrateur peut **ajouter**, **renommer**, **désactiver** et **réactiver
 - Une catégorie désactivée disparaît du formulaire, mais les demandes qui l'utilisent la gardent et restent filtrables.
 - Il est impossible de **supprimer** une catégorie utilisée par au moins une demande. `[HYPOTHÈSE]`
 - Il est impossible de désactiver la dernière catégorie active, car le formulaire deviendrait inutilisable. `[HYPOTHÈSE]`
+- Pour la même raison, il est impossible de **supprimer** la dernière catégorie active, même si elle n'a jamais été utilisée. Le message est le même que pour la désactivation. `[PRÉCISION]` (validée par Aurel le 8 novembre 2026, lors de la validation UX)
 - Deux catégories actives ne peuvent pas porter le même nom.
 
 #### FR-27 : Statuts fixes — **Must** `[CDC]` + `[PRÉCISION]`
@@ -710,7 +711,7 @@ Le **MVP** (*Minimum Viable Product*, ou « produit minimum viable ») est la pr
 | H-10 | Recherche insensible aux accents. | FR-12 |
 | H-12 | Les commentaires internes ne peuvent être ni modifiés ni supprimés. | FR-20 |
 | H-14 | Un compte désactivé perd l'accès à sa prochaine action. Les comptes ne sont jamais supprimés. | FR-22, RM-10 |
-| H-15 | Impossible de supprimer une catégorie utilisée, ou de désactiver la dernière catégorie active. | FR-26 |
+| H-15 | Impossible de supprimer une catégorie utilisée, ou de désactiver la dernière catégorie active. (L'interdiction de *supprimer* la dernière catégorie active est une `[PRÉCISION]` ajoutée lors de la validation UX.) | FR-26 |
 | H-16 | Anonymisation : Should, déclenchée par l'administrateur. Automatique en Could. Les demandes non clôturées ne sont pas concernées. | FR-29 |
 | H-17 | Bases de données distinctes pour le développement et la production. | NFR-2 |
 | H-18 | Vérification de l'absence de secrets par un outil de détection. | NFR-3 |

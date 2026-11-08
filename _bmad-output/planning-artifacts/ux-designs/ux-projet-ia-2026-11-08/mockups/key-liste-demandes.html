@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Liste des demandes (I3)</title>
+<style>
+/*
+  Maquette I3 (Demandes, accueil interne), ordinateur 1 280 px.
+  Régie par : DESIGN.md (Colors › statuts, Components : carte compteur, tableau, menu latéral, badges)
+              EXPERIENCE.md (Information Architecture › menu, Contenu des écrans › I3, State Patterns, Flux 2 — Karim)
+  Karim est collaborateur : la section Administration du menu est absente (FR-24).
+  Les colonnes et filtres marqués (Should) n'existent qu'une fois FR-14/18/19 réalisés.
+*/
+:root{
+  --accent:#6D28D9;--accent-soft:#F5F3FF;--accent-light:#C4B5FD;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.05);
+  --primary:#1E3A8A;--primary-soft:#EEF2FF;--focus:#2563EB;
+  --bg:#FFFFFF;--muted:#F8FAFC;--subtle:#F1F5F9;--border:#E2E8F0;--border-input:#8792A2;
+  --text:#0F172A;--text-muted:#475569;--text-subtle:#64748B;
+  --danger:#B91C1C;--danger-soft:#FEE2E2;--danger-fg:#991B1B;
+  --nv-bg:#DBEAFE;--nv-fg:#1E40AF;--ec-bg:#FEF3C7;--ec-fg:#92400E;--tr-bg:#DCFCE7;--tr-fg:#166534;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#CBD5E1;font-family:var(--font);color:var(--text);padding:32px 16px}
+h1.page{font-size:20px;margin:0 0 4px}
+p.lead{margin:0 0 20px;color:#334155;font-size:14px;max-width:1000px}
+.browser{width:1280px;background:var(--muted);border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(15,23,42,.25);border:1px solid #94A3B8}
+.chrome{height:40px;background:#E2E8F0;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid #CBD5E1}
+.dot{width:11px;height:11px;border-radius:50%;background:#94A3B8}
+.url{margin-left:16px;background:#fff;border-radius:10px;height:26px;flex:1;max-width:620px;display:flex;align-items:center;padding:0 12px;font-size:13px;color:var(--text-muted)}
+.app{display:flex;min-height:860px}
+/* Menu latéral */
+.side{width:240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 12px}
+.side .brand{font-size:18px;font-weight:600;color:var(--primary);padding:0 8px 20px}
+.nav a{display:flex;justify-content:space-between;align-items:center;height:40px;padding:0 12px;border-radius:10px;font-size:14px;font-weight:500;color:#334155;text-decoration:none;margin-bottom:2px}
+.nav a.active{background:var(--primary-soft);color:var(--primary)}
+.nav .pill{font-size:12px;font-weight:600;background:var(--primary);color:#fff;border-radius:9999px;padding:1px 8px}
+.side .foot{margin-top:auto;border-top:1px solid var(--border);padding:14px 8px 0;font-size:13px}
+.side .who{font-weight:600}
+.side .role{color:var(--text-muted);margin-bottom:10px}
+.side .logout{color:var(--primary);font-weight:500;display:block;margin-bottom:12px}
+.side .ver{color:var(--text-subtle);font-size:12px}
+/* Contenu */
+.main{flex:1;padding:32px;max-width:1040px}
+.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.head h2{font-size:24px;font-weight:600;margin:0;letter-spacing:-.01em}
+.btn{height:44px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;padding:0 18px;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-secondary{background:#fff;color:var(--text);border:1px solid var(--border-input)}
+.top{display:flex;gap:16px;align-items:stretch;margin-bottom:20px}
+.counter{background:var(--primary);color:#fff;border-radius:14px;padding:16px 20px;width:220px;flex:none;cursor:pointer}
+.counter .n{font-size:32px;font-weight:700;line-height:1.1}
+.counter .l{font-size:16px;font-weight:600}
+.counter .s{font-size:13px;opacity:.85;margin-top:4px}
+.counter .go{font-size:13px;margin-top:10px;text-decoration:underline}
+.tools{flex:1;background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
+.search{height:44px;border:1px solid var(--border-input);border-radius:6px;display:flex;align-items:center;padding:0 12px;gap:10px;font-size:15px;color:var(--text-subtle);margin-bottom:12px}
+.search .ico{color:var(--text-muted)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filter{height:36px;border:1px solid var(--border-input);border-radius:10px;padding:0 10px;display:flex;align-items:center;gap:6px;font-size:13px;background:#fff}
+.filter b{font-weight:600}
+.filter::after{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;color:var(--text-muted)}
+.filter.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.filter.should{border-style:dashed}
+.reset{font-size:13px;color:var(--primary);font-weight:500;text-decoration:underline;margin-left:4px}
+.resline{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--text-muted);margin:0 0 8px}
+.resline b{color:var(--text)}
+.legend-should{font-size:12px;color:var(--text-subtle)}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:10px 12px;background:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:0 12px;height:56px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr.hover td{background:var(--muted)}
+.ref{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--primary);text-decoration:underline;white-space:nowrap}
+.date{color:var(--text-muted);white-space:nowrap;font-size:13px}
+.subj{font-weight:600}
+.cat{color:#334155;font-size:13px}
+.who{font-size:13px}
+.none{color:var(--text-subtle);font-size:13px}
+.badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;font-size:12px;font-weight:600;border-radius:9999px;white-space:nowrap}
+.nv{background:var(--nv-bg);color:var(--nv-fg)}.ec{background:var(--ec-bg);color:var(--ec-fg)}.tr{background:var(--tr-bg);color:var(--tr-fg)}
+.urg{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;font-size:12px;font-weight:600;border-radius:6px;background:var(--danger-soft);color:var(--danger-fg);margin-right:6px;vertical-align:1px}
+.idle{display:inline-flex;height:20px;padding:0 6px;font-size:11px;font-weight:600;border-radius:6px;background:var(--subtle);color:var(--text-muted);margin-top:4px}
+.stack{display:flex;flex-direction:column;align-items:flex-start}
+.pager{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-size:14px;color:var(--text-muted)}
+.pager .btns{display:flex;gap:8px}
+.pager .btn{height:36px;font-size:13px}
+.disabled{opacity:.5}
+/* États annexes */
+.states{margin-top:40px}
+.states h3{font-size:16px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(3,400px);gap:20px}
+.panel{background:var(--muted);border:1px solid #94A3B8;border-radius:16px;padding:16px}
+.panel .tag{font-size:13px;font-weight:600;margin-bottom:12px;color:#1E293B}
+.sk{background:#E2E8F0;border-radius:6px;height:12px;margin-bottom:10px}
+.skrow{display:flex;gap:12px;align-items:center;height:40px;border-bottom:1px solid var(--border)}
+.empty{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 20px;text-align:center}
+.empty .t{font-size:16px;font-weight:600;margin-bottom:6px}
+.empty .d{font-size:14px;color:var(--text-muted);margin-bottom:16px;line-height:1.5}
+.err{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 20px;text-align:center}
+.err .t{font-size:16px;font-weight:600;margin-bottom:6px;color:var(--danger-fg)}
+
+/* --- Restyle « plus chic » : icônes, logo, accent, ombres douces --- */
+.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px}
+.ico-sm{width:16px;height:16px;vertical-align:-3px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo svg{width:32px;height:32px;flex:none}
+.logo .w{font-size:17px;font-weight:650;color:var(--text);letter-spacing:-.01em}
+.logo .w span{font-weight:400;color:var(--text-muted)}
+.ni{display:flex;align-items:center;gap:10px}.nav a .ico{color:var(--text-muted)}.nav a.active .ico{color:var(--accent)}
+.nav a.active{box-shadow:inset 3px 0 0 var(--accent)}
+.logout{display:flex !important;align-items:center;gap:6px}
+.btn{gap:8px}.btn-primary{box-shadow:0 1px 2px rgba(30,58,138,.25),0 6px 16px rgba(30,58,138,.18)}
+.ico-xs{width:13px;height:13px;stroke-width:2;vertical-align:-2px}
+.bub{width:44px;height:44px;border-radius:9999px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.bub.err-b{background:var(--danger-soft);color:var(--danger)}
+.counter{position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(30,58,138,.25)}
+.counter .deco{position:absolute;right:-14px;top:-14px;width:96px;height:96px;fill:var(--accent-light);opacity:.35}
+.counter .go{display:flex;align-items:center;gap:6px;text-decoration:none;font-weight:500}
+.tools,table{box-shadow:var(--shadow-sm)}table{border-collapse:separate;border-spacing:0}
+tbody tr:last-child td{border-bottom:0}
+.flab{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);margin-right:4px}
+.urg,.idle{gap:4px;align-items:center}
+</style>
+</head>
+<body>
+<h1 class="page">I3 · Demandes (accueil de l'espace interne) — ordinateur</h1>
+<p class="lead">Karim (collaborateur) vient de se connecter, 8 nov. 2026, 9 h 05 (Flux 2). Les éléments en pointillés sont <b>Should</b> : l'écran doit fonctionner sans eux. Seules 8 des 25 lignes de la page sont dessinées. Sous la maquette : les états chargement, vide et erreur. EXPERIENCE.md et DESIGN.md l'emportent en cas de désaccord.</p>
+
+<div class="browser">
+<div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">🔒 demandes.nova-services.fr/demandes</span></div>
+<div class="app">
+
+  <aside class="side">
+    <div class="brand logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1E3A8A"/><path d="M16 6.5c.8 4.9 4.6 8.7 9.5 9.5-4.9.8-8.7 4.6-9.5 9.5-.8-4.9-4.6-8.7-9.5-9.5 4.9-.8 8.7-4.6 9.5-9.5z" fill="#C4B5FD"/><circle cx="24.5" cy="7.5" r="1.6" fill="#C4B5FD"/></svg><span class="w">Nova <span>Services</span></span></div>
+    <nav class="nav">
+      <a class="active"><span class="ni"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/></svg>Demandes</span> <span class="pill">5</span></a>
+      <a><span class="ni"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>Nouvelle demande</span></a>
+    </nav>
+    <div class="foot">
+      <div class="who">Karim Benali</div>
+      <div class="role">Collaborateur</div>
+      <span class="logout"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg> Se déconnecter</span>
+      <div class="ver">Version v1.0.0</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <h2>Demandes</h2>
+      <span class="btn btn-primary"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Nouvelle demande</span>
+    </div>
+
+    <div class="top">
+      <div class="counter" role="link"><svg class="deco" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2c1.2 7.4 6.6 12.8 14 14-7.4 1.2-12.8 6.6-14 14-1.2-7.4-6.6-12.8-14-14C9.4 14.8 14.8 9.4 16 2z"/></svg>
+        <div class="n">5</div>
+        <div class="l">à traiter</div>
+        <div class="s">Nouvelles + urgentes non traitées</div>
+        <div class="go">Afficher ces demandes <svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="tools">
+        <div class="search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Rechercher par référence, nom, email, entreprise ou objet</div>
+        <div class="filters"><span class="flab"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg> Filtres</span>
+          <span class="filter">Statut : <b>Tous</b></span>
+          <span class="filter">Catégorie : <b>Toutes</b></span>
+          <span class="filter">Canal : <b>Tous</b></span>
+          <span class="filter should">Priorité : <b>Toutes</b></span>
+          <span class="filter should">Attribution : <b>Toutes</b></span>
+          <span class="filter should">Sans activité</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="resline"><span><b>42 demandes</b> · les plus récentes en premier</span><span class="legend-should">Colonne « Attribuée à » et badges Urgente / Sans activité : Should</span></div>
+
+    <table>
+      <thead><tr><th>Référence</th><th>Déposée le</th><th>Demandeur</th><th>Objet</th><th>Catégorie</th><th>Statut</th><th>Attribuée à</th></tr></thead>
+      <tbody>
+        <tr class="hover"><td><span class="ref">NOVA-2026-0042</span></td><td class="date">8 nov., 8 h 47</td><td>Claire Martin</td><td class="subj">Accès impossible à l'outil de facturation</td><td class="cat">Problème technique</td><td><span class="badge nv">Nouvelle</span></td><td class="none">Personne</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0041</span></td><td class="date">8 nov., 8 h 15</td><td>Hélène Dupuis</td><td class="subj">Contrat de maintenance annuelle : tarifs</td><td class="cat">Demande d'information</td><td><span class="badge nv">Nouvelle</span></td><td class="none">Personne</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0040</span></td><td class="date">7 nov., 17 h 32</td><td>Marc Lefèvre</td><td class="subj"><span class="urg"><svg class="ico ico-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Urgente</span>Serveur de fichiers inaccessible</td><td class="cat">Problème technique</td><td><span class="badge ec">En cours</span></td><td class="who">Lucas Bernard</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0039</span></td><td class="date">7 nov., 14 h 05</td><td>Julie Moreau</td><td class="subj">Rendez-vous pour présenter votre offre</td><td class="cat">Demande de rendez-vous</td><td><span class="badge nv">Nouvelle</span></td><td class="none">Personne</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0038</span></td><td class="date">7 nov., 10 h 20</td><td>Thomas Girard</td><td class="subj">Question sur la facture d'octobre</td><td class="cat">Question administrative</td><td><span class="badge ec">En cours</span></td><td class="who">Karim Benali</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0037</span></td><td class="date">6 nov., 16 h 48</td><td>Nadia Haddad</td><td class="subj">Imprimante réseau hors ligne</td><td class="cat">Problème technique</td><td><span class="badge nv">Nouvelle</span></td><td class="none">Personne</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0036</span></td><td class="date">5 nov., 11 h 02</td><td>Paul Rousseau</td><td class="subj">Changement d'adresse de facturation</td><td class="cat">Question administrative</td><td><span class="badge tr">Traitée</span></td><td class="who">Karim Benali</td></tr>
+        <tr><td><span class="ref">NOVA-2026-0035</span></td><td class="date">29 oct., 9 h 30</td><td>Sarah Petit</td><td class="subj">Migration de la messagerie de l'équipe</td><td class="cat">Problème technique</td><td><div class="stack"><span class="badge ec">En cours</span><span class="idle"><svg class="ico ico-xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Sans activité</span></div></td><td class="who">Lucas Bernard</td></tr>
+      </tbody>
+    </table>
+
+    <div class="pager">
+      <span>Demandes 1 à 25 sur 42 · Page 1 sur 2</span>
+      <span class="btns"><span class="btn btn-secondary disabled"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> Précédente</span><span class="btn btn-secondary">Suivante <svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></span>
+    </div>
+  </main>
+</div>
+</div>
+
+<section class="states">
+  <h3>États de l'écran I3</h3>
+  <div class="grid">
+    <div class="panel">
+      <div class="tag">Chargement — squelette</div>
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <div style="width:120px;height:84px;background:#C7D2FE;border-radius:14px"></div>
+        <div style="flex:1"><div class="sk" style="height:36px"></div><div class="sk" style="width:70%;height:24px"></div></div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:0 12px">
+        <div class="skrow"><div class="sk" style="width:90px;margin:0"></div><div class="sk" style="width:110px;margin:0"></div><div class="sk" style="flex:1;margin:0"></div></div>
+        <div class="skrow"><div class="sk" style="width:90px;margin:0"></div><div class="sk" style="width:110px;margin:0"></div><div class="sk" style="flex:1;margin:0"></div></div>
+        <div class="skrow"><div class="sk" style="width:90px;margin:0"></div><div class="sk" style="width:110px;margin:0"></div><div class="sk" style="flex:1;margin:0"></div></div>
+        <div class="skrow" style="border:0"><div class="sk" style="width:90px;margin:0"></div><div class="sk" style="width:110px;margin:0"></div><div class="sk" style="flex:1;margin:0"></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="tag">Vide — recherche « imprimante couleur » + filtre Traitée</div>
+      <div class="empty">
+        <div class="bub"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div><div class="t">Aucune demande trouvée</div>
+        <div class="d">Vérifiez l'orthographe ou retirez des filtres.</div>
+        <span class="btn btn-secondary">Réinitialiser</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:12px;line-height:1.5">Autre vide — aucune demande en base : « Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. » + « Saisir une demande reçue par téléphone ».</div>
+    </div>
+    <div class="panel">
+      <div class="tag">Erreur — chargement impossible</div>
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <div style="width:120px;background:var(--primary);color:#fff;border-radius:14px;padding:12px"><div style="font-size:32px;font-weight:700;line-height:1.1">—</div><div style="font-size:14px;font-weight:600">à traiter</div></div>
+      </div>
+      <div class="err">
+        <div class="bub err-b"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></div><div class="t">Impossible de charger les demandes.</div>
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px">Vérifiez votre connexion, puis réessayez.</div>
+        <span class="btn btn-secondary">Réessayer</span>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

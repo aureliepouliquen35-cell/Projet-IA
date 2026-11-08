@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Validation UX — Nova Services</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --muted: #78716c;
+
+    --verdict-strong: #16a34a;
+    --verdict-adequate: #65a30d;
+    --verdict-thin: #d97706;
+    --verdict-broken: #dc2626;
+
+    --sev-low: #64748b;
+    --sev-medium: #ca8a04;
+    --sev-high: #ea580c;
+    --sev-critical: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .title h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .title .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .synthesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 15.5px;
+  }
+  .synthesis p { margin: 0 0 10px; }
+  .synthesis p:last-child { margin-bottom: 0; }
+
+  .dimension-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .dim-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dim-card .dim-name { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .dim-card .dim-verdict { font-size: 14px; font-weight: 600; }
+
+  section.dimension, section.reviewer-section { margin-bottom: 14px; }
+  section.dimension details, section.reviewer-section details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  section summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section summary::-webkit-details-marker { display: none; }
+  section summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  section details[open] summary::before { transform: rotate(90deg); }
+  section summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    flex: 1;
+  }
+  .verdict-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: white;
+  }
+  .verdict-strong { background: var(--verdict-strong); }
+  .verdict-adequate { background: var(--verdict-adequate); }
+  .verdict-thin { background: var(--verdict-thin); }
+  .verdict-broken { background: var(--verdict-broken); }
+
+  .dim-body { padding: 4px 20px 18px; }
+  .dim-judgment { color: var(--text); font-size: 14.5px; }
+  .dim-judgment p { margin: 0 0 10px; }
+
+  .findings-list { padding: 0 20px 4px; }
+  article.finding {
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  article.finding:first-child { border-top: none; }
+  article.finding header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .badge-sev-low { background: rgba(100, 116, 139, 0.12); color: var(--sev-low); }
+  .badge-sev-medium { background: rgba(202, 138, 4, 0.14); color: var(--sev-medium); }
+  .badge-sev-high { background: rgba(234, 88, 12, 0.14); color: var(--sev-high); }
+  .badge-sev-critical { background: rgba(220, 38, 38, 0.14); color: var(--sev-critical); }
+  .finding-title { margin: 0; font-size: 15px; font-weight: 500; flex: 1; min-width: 200px; }
+  .finding-location { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .finding-note, .finding-fix { margin-top: 6px; font-size: 14px; }
+  .finding-fix strong { color: var(--muted); font-weight: 500; }
+
+  .reviewer-source {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .mechanical {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 14px;
+  }
+  .mechanical h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mechanical ul { margin: 0; padding-left: 20px; }
+  .mechanical li { margin-bottom: 4px; color: var(--text); }
+
+  footer.report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+.matrix{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surface)}.matrix th,.matrix td{border-bottom:1px solid var(--border);padding:6px 10px;text-align:left}.matrix th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}.ok{color:var(--verdict-strong);font-weight:600}.warn{color:var(--sev-medium);font-weight:600}.counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.fid{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--muted)}h2.block{font-size:16px;margin:28px 0 10px}
+</style>
+</head>
+<body>
+  <div class="container">
+<header class="report-header"><div class="title"><h1>Nova Services — Rapport de validation UX</h1><div class="subtitle">_bmad-output/planning-artifacts/ux-designs/ux-projet-ia-2026-11-08/</div></div></header>
+<div class="synthesis"><p>Les deux documents forment un contrat solide pour la suite : les 4 parcours du PRD sont couverts, chacun avec un personnage, des étapes numérotées, un moment clé et un cas d'échec. Les trois écrans clés (formulaire, liste, détail) sont décrits dans leurs quatre états, et toutes les références de tokens existent. Aucun problème critique.</p><p>Les manques sont surtout sur les bords : 2 situations de session non prévues (compte désactivé ou rétrogradé pendant qu'on est connecté, pas de bouton « Se déconnecter » sur l'écran du premier mot de passe), 2 fonctions Must sans parcours (suppression RGPD, réinitialisation de mot de passe), des états incomplets sur les écrans d'administration, et quelques composants dessinés dans les maquettes mais sans fiche visuelle. Il reste 21 hypothèses non confirmées, dont 6 méritent un vrai regard.</p><div class="counts"><span class="badge badge-sev-critical">Critique : 0</span><span class="badge badge-sev-high">Élevée : 2</span><span class="badge badge-sev-medium">Moyenne : 8</span><span class="badge badge-sev-low">Faible : 8</span></div></div>
+<div class="dimension-summary"><div class="dim-card"><div class="dim-name">Couverture des parcours</div><div class="dim-verdict" style="color: var(--verdict-adequate)">correct</div></div><div class="dim-card"><div class="dim-name">Complétude des tokens</div><div class="dim-verdict" style="color: var(--verdict-strong)">solide</div></div><div class="dim-card"><div class="dim-name">Couverture des composants</div><div class="dim-verdict" style="color: var(--verdict-adequate)">correct</div></div><div class="dim-card"><div class="dim-name">Couverture des états</div><div class="dim-verdict" style="color: var(--verdict-adequate)">correct</div></div><div class="dim-card"><div class="dim-name">Couverture des références visuelles</div><div class="dim-verdict" style="color: var(--verdict-strong)">solide</div></div><div class="dim-card"><div class="dim-name">Surcharge et sur-spécification</div><div class="dim-verdict" style="color: var(--verdict-strong)">solide</div></div><div class="dim-card"><div class="dim-name">Fidélité aux sources</div><div class="dim-verdict" style="color: var(--verdict-strong)">solide</div></div><div class="dim-card"><div class="dim-name">Conformité de structure</div><div class="dim-verdict" style="color: var(--verdict-strong)">solide</div></div></div>
+<section class="reviewer-section"><details open><summary><h2>Matrice fonctions → écrans → parcours</h2><span class="reviewer-source">32 FR du PRD</span></summary><div class="dim-body"><table class="matrix"><thead><tr><th>FR</th><th>Priorité</th><th>Écran</th><th>Parcours</th><th>État</th><th>Problème</th></tr></thead><tbody><tr><td>FR-1</td><td>Must</td><td>P1</td><td>Flux 1</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-2</td><td>Must</td><td>P1</td><td>Flux 1</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-3</td><td>Must</td><td>P1 → P2</td><td>Flux 1</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-4</td><td>Must</td><td>P2</td><td>Flux 1</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-5</td><td>Must</td><td>P1</td><td>Flux 1</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-6</td><td>Should</td><td>P1</td><td>— (invisible pour un humain)</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-7</td><td>Could</td><td>e-mail</td><td>—</td><td class="warn">À compléter</td><td class="fid">F15</td></tr><tr><td>FR-8</td><td>Must</td><td>I1</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-9</td><td>Must</td><td>Menu, I1</td><td>Flux 2</td><td class="warn">À compléter</td><td class="fid">F2</td></tr><tr><td>FR-10</td><td>Must</td><td>I1 (redirection)</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-11</td><td>Must</td><td>I3</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-12</td><td>Must</td><td>I3</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-13</td><td>Must</td><td>I3</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-14</td><td>Must</td><td>I3</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-15</td><td>Must</td><td>I4</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-16</td><td>Must</td><td>I4</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-17</td><td>Must</td><td>I4</td><td>Flux 2</td><td class="ok">OK</td><td class="fid">F14</td></tr><tr><td>FR-18</td><td>Should</td><td>I4</td><td>Flux 2</td><td class="ok">OK</td><td class="fid">F13</td></tr><tr><td>FR-19</td><td>Should</td><td>I3, I4</td><td>—</td><td class="warn">À compléter</td><td class="fid">F12</td></tr><tr><td>FR-20</td><td>Should</td><td>I4</td><td>Flux 2</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-21</td><td>Must</td><td>A1, I2</td><td>Flux 3</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-22</td><td>Must</td><td>A1</td><td>Flux 3</td><td class="warn">À compléter</td><td class="fid">F1, F4</td></tr><tr><td>FR-23</td><td>Must</td><td>A1</td><td>—</td><td class="warn">À compléter</td><td class="fid">F4</td></tr><tr><td>FR-24</td><td>Must</td><td>Menu, S1</td><td>Flux 3</td><td class="ok">OK</td><td class="fid">F1</td></tr><tr><td>FR-25</td><td>Must</td><td>A1</td><td>Flux 3 (cas limite)</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-26</td><td>Must</td><td>A2</td><td>Flux 3</td><td class="warn">À compléter</td><td class="fid">F6, F9</td></tr><tr><td>FR-27</td><td>Must</td><td>aucun écran (voulu)</td><td>—</td><td class="ok">OK</td><td class="fid"></td></tr><tr><td>FR-28</td><td>Must</td><td>I4</td><td>—</td><td class="warn">À compléter</td><td class="fid">F3</td></tr><tr><td>FR-29</td><td>Should</td><td>A4</td><td>— (acceptable)</td><td class="ok">OK</td><td class="fid">F7</td></tr><tr><td>FR-30</td><td>Must</td><td>I5</td><td>Flux 4</td><td class="ok">OK</td><td class="fid">F11</td></tr><tr><td>FR-31</td><td>Must</td><td>A3</td><td>— (simple réglage)</td><td class="warn">À compléter</td><td class="fid">F7</td></tr><tr><td>FR-32</td><td>Could</td><td>e-mail</td><td>—</td><td class="warn">À compléter</td><td class="fid">F15</td></tr></tbody></table></div></details></section>
+<section class="dimension"><details open><summary><h2>Couverture des parcours</h2><span class="verdict-pill verdict-adequate">correct</span></summary><div class="dim-body"><div class="dim-judgment"><p>Chaque UJ du PRD (UJ-1 à UJ-4) a son flux, avec un personnage, des étapes, un moment clé et un cas d'échec, sauf le flux 4, qui n'a pas d'échec. Sur 32 fonctions (FR), 26 ont un écran et un parcours, ou n'en ont pas besoin. 6 ont un écran mais pas de parcours (FR-19, FR-23, FR-28 surtout) ou un contenu non décrit (FR-7, FR-32, des e-mails, en Could). Voir la matrice ci-dessous.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F3</span> La suppression d'une demande (FR-28, Must, RGPD) n'a pas de parcours</h3><span class="finding-location">EXPERIENCE.md › Key Flows</span></header><div class="finding-note">La fenêtre de confirmation est décrite, mais pas le chemin complet : comment l'administratrice retrouve les demandes de la personne, puis vérifie qu'elles ont disparu.</div><div class="finding-fix"><strong>Correction :</strong> Ajouter un flux 5 : Sophie reçoit une demande d'effacement par e-mail. Elle cherche l'e-mail de la personne dans la liste, trouve 2 demandes, ouvre chacune, clique « Supprimer la demande… » et confirme. Au moment clé, la recherche n'affiche plus que « Aucune demande trouvée ». Cas limite : un collègue avait la demande ouverte ; à sa prochaine action, il voit « Cette demande n'existe pas ou a été supprimée ».</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F11</span> Le flux 4 (Karim au téléphone) n'a pas de cas d'échec</h3><span class="finding-location">EXPERIENCE.md › Flux 4</span></header><div class="finding-note">Les autres flux en ont un.</div><div class="finding-fix"><strong>Correction :</strong> Karim oublie de cocher « La personne a été informée… » : l'enregistrement est refusé, le message apparaît sous la case et rien n'est perdu.</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F12</span> La priorité Urgente (FR-19) n'apparaît dans aucun parcours</h3><span class="finding-location">EXPERIENCE.md › Key Flows</span></header><div class="finding-note">L'écran la prévoit, mais aucun parcours ne montre son effet sur le compteur.</div><div class="finding-fix"><strong>Correction :</strong> Dans le flux 4, le prospect dit que c'est bloquant : Karim passe la demande en Urgente. Le badge apparaît dans la liste et la demande compte dans « à traiter » tant qu'elle n'est pas traitée. (Should)</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F15</span> Contenu des deux e-mails (FR-7, FR-32, Could) non décrit</h3><span class="finding-location">EXPERIENCE.md · FR-7, FR-32</span></header><div class="finding-note">Ce sont aussi des écrans, au sens où quelqu'un les lit.</div><div class="finding-fix"><strong>Correction :</strong> FR-7, e-mail au demandeur : objet « Votre demande NOVA-2026-0042 est enregistrée », rappel de l'objet et du téléphone de contact. FR-32, e-mail interne : « Nouvelle demande NOVA-2026-0042 : {objet} », un lien vers le détail, jamais la description. L'écran P2 ne promet pas d'e-mail, car son envoi peut échouer.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Complétude des tokens</h2><span class="verdict-pill verdict-strong">solide</span></summary><div class="dim-body"><div class="dim-judgment"><p>Les 31 couleurs ont toutes une valeur hexadécimale. Toutes les références {chemin.token} du texte existent. Les contrastes des combinaisons importantes sont donnés (statuts, bouton principal, accent). Seule remarque : une couleur est codée en dur dans une maquette (voir F16).</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details open><summary><h2>Couverture des composants</h2><span class="verdict-pill verdict-adequate">correct</span></summary><div class="dim-body"><div class="dim-judgment"><p>Boutons, champs, badges, carte compteur, tableau, menu, historique, alertes et fenêtre de confirmation ont une fiche visuelle et une règle de comportement. Une dizaine de petits composants visibles dans les maquettes n'ont pas de fiche visuelle dans DESIGN.md.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F10</span> Une dizaine de composants dessinés dans les maquettes n'ont pas de fiche visuelle</h3><span class="finding-location">DESIGN.md › Components</span></header><div class="finding-note">Encadré d'information, toast, bouton de filtre, case à cocher, liste déroulante, choix Normale / Urgente, pagination, fil d'Ariane, squelette de chargement, pastille d'icône.</div><div class="finding-fix"><strong>Correction :</strong> Ajouter une fiche courte pour chacun dans DESIGN.md, avec deux nouveaux tokens : alert-info et toast. Les valeurs sont reprises des maquettes, rien de nouveau visuellement.</div></article></div></details></section>
+<section class="dimension"><details open><summary><h2>Couverture des états</h2><span class="verdict-pill verdict-adequate">correct</span></summary><div class="dim-body"><div class="dim-judgment"><p>P1, P2, I1, I3 et I4 sont très bien couverts (vide, chargement, erreur, complet, plus les cas particuliers). Les écrans d'administration A2, A3, A4 et l'écran I2 n'ont que des messages d'erreur partiels. Deux situations de session et plusieurs cas limites des catégories et des comptes manquent.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-high">Élevée</span><h3 class="finding-title"><span class="fid">F1</span> Compte désactivé ou rétrogradé pendant qu'il est connecté : rien n'est prévu à l'écran</h3><span class="finding-location">EXPERIENCE.md › State Patterns · FR-22</span></header><div class="finding-note">Le PRD dit que la personne perd l'accès « au plus tard à sa prochaine action », mais aucun écran ne dit ce qu'elle voit alors. Le développeur devrait l'inventer.</div><div class="finding-fix"><strong>Correction :</strong> Compte désactivé : à sa prochaine action, retour à la connexion avec un message neutre : « Votre session a pris fin. Contactez votre administrateur si besoin. » Administrateur rétrogradé : la section Administration disparaît du menu ; s'il était sur une page d'administration, il voit la page S1 « Accès refusé ».</div></article><article class="finding"><header><span class="badge badge-sev-high">Élevée</span><h3 class="finding-title"><span class="fid">F2</span> L'écran I2 (premier mot de passe) n'a pas de bouton « Se déconnecter »</h3><span class="finding-location">EXPERIENCE.md › I2 · FR-9</span></header><div class="finding-note">FR-9 exige le bouton sur toutes les pages internes. Or I2 n'a pas de menu latéral, donc pas de bouton. Quelqu'un qui s'est trompé de compte resterait bloqué.</div><div class="finding-fix"><strong>Correction :</strong> Ajouter un lien « Se déconnecter » en haut à droite de I2.</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F4</span> Les fenêtres « Modifier un compte » et « Réinitialiser le mot de passe » ne sont pas décrites</h3><span class="finding-location">EXPERIENCE.md › A1 · FR-22, FR-23</span></header><div class="finding-note">Seule la création de compte est détaillée. FR-23 est un Must.</div><div class="finding-fix"><strong>Correction :</strong> Modifier : champs Nom et Rôle ; l'e-mail est affiché mais non modifiable (le PRD ne prévoit que nom et rôle). Réinitialiser : même principe que la création (nouveau mot de passe temporaire, bouton « Générer », affiché une seule fois avec « Copier »), avec le rappel « L'ancien mot de passe ne fonctionne plus. Cette personne devra en choisir un nouveau à sa prochaine connexion. »</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F5</span> Pas de message quand un champ dépasse sa longueur maximale</h3><span class="finding-location">EXPERIENCE.md › P1 · FR-1</span></header><div class="finding-note">Le PRD fixe des limites : nom 100, e-mail 100, téléphone 30, entreprise 100, objet 150, description 5 000. Seul le minimum de la description a un message.</div><div class="finding-fix"><strong>Correction :</strong> On ne coupe jamais le texte sans prévenir. Un compteur s'affiche sous l'objet (« 42 / 150 ») comme sous la description. Au-delà de la limite, le compteur passe en rouge et le message dit : « L'objet ne doit pas dépasser 150 caractères. » Même règle pour les autres champs.</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F6</span> Les catégories désactivées : affichage non précisé dans le filtre et le détail</h3><span class="finding-location">EXPERIENCE.md › I3, I4 · FR-26, RM-11</span></header><div class="finding-note">Le PRD dit qu'elles restent sur les demandes et « restent filtrables ».</div><div class="finding-fix"><strong>Correction :</strong> Filtre Catégorie : d'abord les catégories actives, puis, sous un trait, les désactivées suivies de « (désactivée) ». Détail : le nom suivi de « (désactivée) ». P1 et I5 ne proposent que les actives.</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F7</span> États incomplets sur I2, A2, A3 et A4</h3><span class="finding-location">EXPERIENCE.md › I2, A2, A3, A4</span></header><div class="finding-note">Il manque notamment l'erreur « e-mail de contact invalide » exigée par FR-31, la confirmation avant de supprimer une catégorie, l'état « anonymisation en cours » et son échec, ainsi que les chargements.</div><div class="finding-fix"><strong>Correction :</strong> Ajouter pour chacun un petit tableau d'états (vide, chargement, erreur, complet), comme pour les autres écrans. Par exemple, A3 : « L'e-mail doit avoir la forme nom@exemple.fr ».</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F8</span> Pas d'écran « erreur inattendue »</h3><span class="finding-location">EXPERIENCE.md › IA, State Patterns · NFR-9</span></header><div class="finding-note">Si une page plante, rien n'est prévu. Or le support doit transmettre l'heure, la page et le message d'erreur (NFR-9).</div><div class="finding-fix"><strong>Correction :</strong> Ajouter un écran S3 : « Une erreur inattendue s'est produite. » avec un bouton « Réessayer », un lien « Retour aux demandes », et une ligne à recopier pour le support : heure, page et code court de l'erreur.</div></article><article class="finding"><header><span class="badge badge-sev-medium">Moyenne</span><h3 class="finding-title"><span class="fid">F9</span> La dernière catégorie active pourrait être supprimée</h3><span class="finding-location">EXPERIENCE.md › A2 · FR-26 (trou du PRD)</span></header><div class="finding-note">Le PRD interdit de désactiver la dernière catégorie active, mais pas de la supprimer si elle n'a jamais servi. Le formulaire deviendrait alors inutilisable.</div><div class="finding-fix"><strong>Correction :</strong> Appliquer la même règle à la suppression, avec le même message : « Impossible : au moins une catégorie doit rester active, sinon le formulaire serait inutilisable. » Noter cette règle comme nouvelle hypothèse (E-H13), à reporter dans le PRD plus tard.</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F13</span> Demande attribuée à un compte ensuite désactivé : affichage non précisé</h3><span class="finding-location">EXPERIENCE.md › I3, I4 · FR-18</span></header><div class="finding-note">Le cas se produit au départ de Lucas (flux 3).</div><div class="finding-fix"><strong>Correction :</strong> Afficher « Lucas Bernard (désactivé) » dans la liste et le détail. Le filtre Attribution le propose encore, mais la liste pour réattribuer ne montre que les comptes actifs.</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F14</span> Auteur de l'événement d'anonymisation non précisé</h3><span class="finding-location">EXPERIENCE.md › I4 · FR-17, FR-29</span></header><div class="finding-note">FR-17 prévoit « Système » pour une anonymisation automatique.</div><div class="finding-fix"><strong>Correction :</strong> Ligne d'historique « Données personnelles anonymisées », avec pour auteur l'administrateur qui l'a lancée, ou « Système » si elle est automatique (Could).</div></article></div></details></section>
+<section class="dimension"><details open><summary><h2>Couverture des références visuelles</h2><span class="verdict-pill verdict-strong">solide</span></summary><div class="dim-body"><div class="dim-judgment"><p>Les 3 maquettes sont liées depuis l'écran qu'elles illustrent dans EXPERIENCE.md. La règle « les documents l'emportent sur les maquettes » est écrite. DESIGN.md ne renvoie qu'au dossier, pas à chaque maquette.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F18</span> DESIGN.md ne renvoie pas à chaque maquette</h3><span class="finding-location">DESIGN.md › en-tête</span></header><div class="finding-note">Il renvoie seulement au dossier mockups/.</div><div class="finding-fix"><strong>Correction :</strong> Lister les 3 maquettes et ce que chacune illustre.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Surcharge et sur-spécification</h2><span class="verdict-pill verdict-strong">solide</span></summary><div class="dim-body"><div class="dim-judgment"><p>Pas de répétition inutile du PRD : les exigences sont citées par leur numéro. Les tableaux sont utilisés là où ils aident. Le petit lexique et les explications sont utiles pour un lecteur débutant.</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details open><summary><h2>Fidélité aux sources</h2><span class="verdict-pill verdict-strong">solide</span></summary><div class="dim-body"><div class="dim-judgment"><p>Les chemins sources: sont valides. Les noms UJ, les termes du glossaire et les textes imposés par le PRD (« Votre demande a bien été enregistrée », « Aucune demande trouvée », « Identifiants incorrects », message du dernier administrateur) sont repris mot pour mot. Quelques petites divergences entre texte et maquettes.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F16</span> Petits écarts entre le texte et les maquettes</h3><span class="finding-location">EXPERIENCE.md › IA ; mockups/</span></header><div class="finding-note">Le menu est décrit avec le nombre « entre parenthèses », alors que la maquette montre une pastille. La mention « Priorité normale » est affichée dans le détail sans être décrite. Une couleur (#3B2A6B) est codée en dur dans la mention sur les données.</div><div class="finding-fix"><strong>Correction :</strong> Écrire « pastille » dans le texte. Préciser : priorité normale affichée discrètement dans le détail, jamais dans la liste. Remplacer #3B2A6B par le token {colors.text}.</div></article><article class="finding"><header><span class="badge badge-sev-low">Faible</span><h3 class="finding-title"><span class="fid">F17</span> Le nombre de résultats n'est pas annoncé aux lecteurs d'écran</h3><span class="finding-location">EXPERIENCE.md › Accessibility Floor</span></header><div class="finding-note">Quand on change un filtre, une personne aveugle ne sait pas que la liste a changé.</div><div class="finding-fix"><strong>Correction :</strong> Ajouter : « 42 demandes » est annoncé à chaque changement de recherche ou de filtre.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Conformité de structure</h2><span class="verdict-pill verdict-strong">solide</span></summary><div class="dim-body"><div class="dim-judgment"><p>DESIGN.md suit l'ordre canonique des sections. EXPERIENCE.md contient toutes les sections obligatoires, plus Responsive &amp; Platform (justifiée : deux surfaces) et deux sections inventées utiles (Contenu des écrans, Données personnelles à l'écran). La section Inspiration n'est pas nécessaire : aucun produit de référence n'est cité.</p></div></div><div class="findings-list"></div></details></section>
+<section class="reviewer-section"><details open><summary><h2>Hypothèses non confirmées (21)</h2><span class="reviewer-source">D-H dans DESIGN.md · E-H dans EXPERIENCE.md</span></summary><div class="dim-body"><table class="matrix"><thead><tr><th>Type</th><th>#</th><th>Hypothèse</th></tr></thead><tbody><tr><td class="warn">À regarder</td><td class="fid">D-H1</td><td>Le logo : carré bleu, étoile violette à 4 branches, « Nova Services »</td></tr><tr><td class="warn">À regarder</td><td class="fid">E-H1</td><td>Vouvoiement partout, y compris entre collègues dans l'espace interne</td></tr><tr><td class="warn">À regarder</td><td class="fid">E-H2</td><td>Pas de tableau de bord : l'accueil interne est la liste des demandes</td></tr><tr><td class="warn">À regarder</td><td class="fid">E-H4</td><td>Les actions du détail s'appliquent au clic, sans bouton « Enregistrer »</td></tr><tr><td class="warn">À regarder</td><td class="fid">E-H5</td><td>Pas de confirmation pour changer de statut, sauf pour « Rouvrir »</td></tr><tr><td class="warn">À regarder</td><td class="fid">E-H12</td><td>La liste n'affiche ni l'e-mail ni le téléphone du demandeur</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H2</td><td>Police Inter</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H3</td><td>Statuts : bleu, ambre, vert ; Urgente en rouge</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H4</td><td>Pas de mode sombre en v1</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H5</td><td>Menu latéral à gauche</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H6</td><td>Détail en deux colonnes</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H7</td><td>Pas de bibliothèque de composants imposée</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H8</td><td>Accent violet améthyste #6D28D9</td></tr><tr><td class="">Choix courant</td><td class="fid">D-H9</td><td>Icônes au trait type Lucide</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H3</td><td>Organisation du menu par rôle</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H6</td><td>Filtres gardés dans l'adresse de la page</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H7</td><td>Recherche 300 ms après la dernière frappe</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H8</td><td>Message « modifiée entre-temps »</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H9</td><td>Retour à la page demandée après une session expirée</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H10</td><td>Liste interne en cartes sur téléphone</td></tr><tr><td class="">Choix courant</td><td class="fid">E-H11</td><td>Pas de raccourcis clavier spéciaux</td></tr></tbody></table></div></details></section>
+<div class="mechanical"><h3>Notes mécaniques</h3><ul><li>Toutes les références {chemin.token} du texte existent dans DESIGN.md.</li><li>Les chemins sources: mènent bien au PRD.</li><li>Les noms des composants sont identiques dans les deux documents.</li><li>Relecture faite directement avec la grille bmad-ux, sans relecteurs en sous-agents.</li></ul></div>
+<footer class="report-footer"><div class="meta"><span>Grille : review-rubric.md</span><span>Généré le : 2026-11-08</span></div></footer>
+</div>
+</body>
+</html>

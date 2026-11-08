@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Détail d'une demande (I4)</title>
+<style>
+/*
+  Maquette I4 (détail d'une demande), ordinateur 1 280 px.
+  Régie par : DESIGN.md (Layout › deux colonnes, Components : historique, badges, boutons, fenêtre de confirmation)
+              EXPERIENCE.md (Contenu des écrans › I4, Component Patterns › boutons de statut, Flux 2 — Karim, Données personnelles à l'écran)
+  Moment montré : 9 h 31, après « Me l'attribuer », « Passer En cours » et un commentaire interne.
+  Attribution, priorité et commentaires sont Should. Seuls les passages de statut permis sont proposés (FR-16).
+*/
+:root{
+  --accent:#6D28D9;--accent-soft:#F5F3FF;--accent-light:#C4B5FD;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.05);
+  --primary:#1E3A8A;--primary-soft:#EEF2FF;--focus:#2563EB;
+  --bg:#FFFFFF;--muted:#F8FAFC;--subtle:#F1F5F9;--border:#E2E8F0;--border-input:#8792A2;
+  --text:#0F172A;--text-muted:#475569;--text-subtle:#64748B;
+  --danger:#B91C1C;--danger-soft:#FEE2E2;--danger-fg:#991B1B;
+  --success:#15803D;--success-soft:#DCFCE7;
+  --nv-bg:#DBEAFE;--nv-fg:#1E40AF;--ec-bg:#FEF3C7;--ec-fg:#92400E;--tr-bg:#DCFCE7;--tr-fg:#166534;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#CBD5E1;font-family:var(--font);color:var(--text);padding:32px 16px}
+h1.page{font-size:20px;margin:0 0 4px}
+p.lead{margin:0 0 20px;color:#334155;font-size:14px;max-width:1000px}
+.browser{width:1280px;background:var(--muted);border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(15,23,42,.25);border:1px solid #94A3B8;position:relative}
+.chrome{height:40px;background:#E2E8F0;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid #CBD5E1}
+.dot{width:11px;height:11px;border-radius:50%;background:#94A3B8}
+.url{margin-left:16px;background:#fff;border-radius:10px;height:26px;flex:1;max-width:620px;display:flex;align-items:center;padding:0 12px;font-size:13px;color:var(--text-muted)}
+.app{display:flex;min-height:980px}
+.side{width:240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 12px;flex:none}
+.side .brand{font-size:18px;font-weight:600;color:var(--primary);padding:0 8px 20px}
+.nav a{display:flex;justify-content:space-between;align-items:center;height:40px;padding:0 12px;border-radius:10px;font-size:14px;font-weight:500;color:#334155;margin-bottom:2px}
+.nav a.active{background:var(--primary-soft);color:var(--primary)}
+.nav .pill{font-size:12px;font-weight:600;background:var(--primary);color:#fff;border-radius:9999px;padding:1px 8px}
+.side .foot{margin-top:auto;border-top:1px solid var(--border);padding:14px 8px 0;font-size:13px}
+.side .who{font-weight:600}.side .role{color:var(--text-muted);margin-bottom:10px}
+.side .logout{color:var(--primary);font-weight:500;display:block;margin-bottom:12px}
+.side .ver{color:var(--text-subtle);font-size:12px}
+.main{flex:1;padding:28px 32px}
+.crumb{font-size:13px;color:var(--text-muted);margin-bottom:14px}
+.crumb a{color:var(--primary);text-decoration:underline;font-weight:500}
+.ref{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--text-muted)}
+.title{display:flex;align-items:center;gap:12px;margin:4px 0 24px;flex-wrap:wrap}
+.title h2{font-size:24px;font-weight:600;margin:0;letter-spacing:-.01em}
+.badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;font-size:12px;font-weight:600;border-radius:9999px;white-space:nowrap}
+.nv{background:var(--nv-bg);color:var(--nv-fg)}.ec{background:var(--ec-bg);color:var(--ec-fg)}.tr{background:var(--tr-bg);color:var(--tr-fg)}
+.prio{display:inline-flex;align-items:center;height:24px;padding:0 8px;font-size:12px;font-weight:600;border-radius:6px;background:var(--subtle);color:var(--text-muted)}
+.cols{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px}
+.card h3{font-size:18px;font-weight:600;margin:0 0 14px}
+.desc{font-size:16px;line-height:1.6;white-space:pre-line;margin:0}
+dl{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;margin:0;font-size:14px}
+dt{color:var(--text-muted)}
+dd{margin:0}
+dd a{color:var(--primary);text-decoration:underline}
+.link{color:var(--primary);font-weight:500;font-size:14px;text-decoration:underline}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+/* Historique */
+.tl{list-style:none;margin:0;padding:0;position:relative}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl li{position:relative;padding:0 0 18px 26px}
+.tl li::before{content:"";position:absolute;left:0;top:5px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--primary)}
+.tl li.new::before{background:var(--primary)}
+.tl .what{font-size:14px}
+.tl .what b{font-weight:600}
+.tl .meta{font-size:13px;color:var(--text-muted);margin-top:2px}
+.comment{background:var(--subtle);border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5;margin-top:8px}
+.comment .tag{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px}
+.textarea{min-height:84px;border:1px solid var(--border-input);border-radius:6px;padding:10px 12px;font-size:15px;color:var(--text-subtle);margin:8px 0}
+.row{display:flex;justify-content:space-between;align-items:center}
+.small{font-size:13px;color:var(--text-muted)}
+.should{display:inline-block;font-size:11px;font-weight:600;color:var(--text-subtle);border:1px dashed var(--text-subtle);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:2px}
+/* Panneau d'actions */
+.panel{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;position:sticky;top:20px}
+.block{padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.block:last-child{border:0;margin:0;padding:0}
+.lab{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:10px}
+.btn{height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;padding:0 16px;width:100%}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-secondary{background:#fff;color:var(--text);border:1px solid var(--border-input)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost-danger{color:var(--danger);font-weight:600;font-size:14px;text-decoration:underline}
+.cur{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:14px}
+.select{height:44px;border:1px solid var(--border-input);border-radius:6px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px}
+.select::after{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;color:var(--text-muted)}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border-input);border-radius:10px;overflow:hidden}
+.seg span{height:40px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500}
+.seg .on{background:var(--primary);color:#fff}
+.note{font-size:13px;color:var(--text-muted);margin-top:8px;line-height:1.4}
+.toast{position:absolute;right:24px;bottom:24px;background:#0F172A;color:#fff;border-radius:10px;padding:12px 16px;font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 20px rgba(15,23,42,.3)}
+.toast .ok{width:18px;height:18px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-size:12px}
+/* Annexes */
+.annex{margin-top:40px;display:grid;grid-template-columns:620px 620px;gap:24px}
+.annex h3{font-size:16px;margin:0 0 12px}
+.stage{background:rgba(15,23,42,.45);border-radius:16px;padding:40px;display:flex;justify-content:center}
+.dialog{background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);width:440px;padding:24px}
+.dialog h4{font-size:18px;margin:0 0 10px;line-height:1.4}
+.dialog p{font-size:14px;line-height:1.5;color:#334155;margin:0 0 20px}
+.actions{display:flex;justify-content:flex-end;gap:10px}
+.actions .btn{width:auto}
+.focus{outline:2px solid var(--focus);outline-offset:2px}
+.info{background:var(--primary-soft);border-left:4px solid var(--primary);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--primary);margin-bottom:14px}
+.mini{background:var(--muted);border:1px solid #94A3B8;border-radius:16px;padding:20px}
+
+/* --- Restyle « plus chic » : icônes, logo, accent, ombres douces --- */
+.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px}
+.ico-sm{width:16px;height:16px;vertical-align:-3px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo svg{width:32px;height:32px;flex:none}
+.logo .w{font-size:17px;font-weight:650;color:var(--text);letter-spacing:-.01em}
+.logo .w span{font-weight:400;color:var(--text-muted)}
+.ni{display:flex;align-items:center;gap:10px}.nav a .ico{color:var(--text-muted)}.nav a.active .ico{color:var(--accent)}
+.nav a.active{box-shadow:inset 3px 0 0 var(--accent)}
+.logout{display:flex !important;align-items:center;gap:6px}
+.btn{gap:8px}.btn-primary{box-shadow:0 1px 2px rgba(30,58,138,.25),0 6px 16px rgba(30,58,138,.18)}
+.ico-xs{width:13px;height:13px;stroke-width:2;vertical-align:-2px}
+.bub{width:44px;height:44px;border-radius:9999px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.bub.err-b{background:var(--danger-soft);color:var(--danger)}
+.crumb .back{display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+.card h3{display:flex;align-items:center;gap:8px}.card h3 .ico{color:var(--accent)}
+.card,.panel{box-shadow:var(--shadow-sm)}
+.tl li.new::before{background:var(--accent);border-color:var(--accent)}
+.comment{border-left:3px solid var(--accent-light)}.comment .tag{display:flex;align-items:center;gap:4px}
+.link{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn-ghost-danger{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.toast{border-radius:12px}.toast .ok{color:#fff}
+.info{display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<h1 class="page">I4 · Détail d'une demande — ordinateur</h1>
+<p class="lead">Karim (collaborateur), 8 nov. 2026, 9 h 31 : il s'est attribué la demande de Claire, l'a passée <b>En cours</b>, puis a ajouté un commentaire interne après son appel (Flux 2). Les blocs marqués <span class="should" style="margin:0">Should</span> sont à réaliser après les Must. Sous la maquette : vue administrateur de la suppression et cas « modifiée entre-temps ».</p>
+
+<div class="browser">
+<div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">🔒 demandes.nova-services.fr/demandes/NOVA-2026-0042</span></div>
+<div class="app">
+
+  <aside class="side">
+    <div class="brand logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1E3A8A"/><path d="M16 6.5c.8 4.9 4.6 8.7 9.5 9.5-4.9.8-8.7 4.6-9.5 9.5-.8-4.9-4.6-8.7-9.5-9.5 4.9-.8 8.7-4.6 9.5-9.5z" fill="#C4B5FD"/><circle cx="24.5" cy="7.5" r="1.6" fill="#C4B5FD"/></svg><span class="w">Nova <span>Services</span></span></div>
+    <nav class="nav">
+      <a class="active"><span class="ni"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/></svg>Demandes</span> <span class="pill">4</span></a>
+      <a><span class="ni"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>Nouvelle demande</span></a>
+    </nav>
+    <div class="foot">
+      <div class="who">Karim Benali</div>
+      <div class="role">Collaborateur</div>
+      <span class="logout"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg> Se déconnecter</span>
+      <div class="ver">Version v1.0.0</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="crumb"><a class="back"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> Demandes</a> (filtre « À traiter » conservé) › <span class="ref" style="font-size:13px">NOVA-2026-0042</span></div>
+    <div class="ref">NOVA-2026-0042</div>
+    <div class="title">
+      <h2>Accès impossible à l'outil de facturation</h2>
+      <span class="badge ec">En cours</span>
+      <span class="prio">Priorité normale</span>
+    </div>
+
+    <div class="cols">
+      <div>
+        <section class="card">
+          <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Demande</h3>
+          <p class="desc">Depuis ce matin, l'outil de facturation installé par Nova affiche « session refusée ».
+J'ai redémarré le poste, sans effet.
+Nous devons émettre des factures aujourd'hui.</p>
+        </section>
+
+        <div class="two">
+          <section class="card">
+            <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Demandeur</h3>
+            <dl style="grid-template-columns:90px 1fr">
+              <dt>Nom</dt><dd>Claire Martin</dd>
+              <dt>Email</dt><dd><a>claire.martin@cabinet-martin.fr</a></dd>
+              <dt>Téléphone</dt><dd class="small">Non renseigné</dd>
+              <dt>Entreprise</dt><dd>Cabinet Martin Expertise</dd>
+            </dl>
+            <div style="margin-top:14px"><span class="link"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Voir ses autres demandes (1)</span></div>
+          </section>
+          <section class="card">
+            <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Informations</h3>
+            <dl style="grid-template-columns:110px 1fr">
+              <dt>Catégorie</dt><dd>Problème technique</dd>
+              <dt>Canal</dt><dd>Formulaire</dd>
+              <dt>Déposée le</dt><dd>8 nov. 2026, 8 h 47</dd>
+              <dt>Clôturée le</dt><dd class="small">— (pas encore traitée)</dd>
+            </dl>
+          </section>
+        </div>
+
+        <section class="card">
+          <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Historique</h3>
+          <ol class="tl">
+            <li><div class="what"><b>Demande créée</b> via le formulaire</div><div class="meta"><b>Demandeur</b> · 8 nov. 2026, 8 h 47</div></li>
+            <li><div class="what"><b>Attribuée à Karim Benali</b> <span class="should">Should</span></div><div class="meta"><b>Karim Benali</b> · 8 nov. 2026, 9 h 12</div></li>
+            <li><div class="what"><b>Statut : Nouvelle → En cours</b></div><div class="meta"><b>Karim Benali</b> · 8 nov. 2026, 9 h 12</div></li>
+            <li class="new"><div class="what"><b>Commentaire interne</b> <span class="should">Should</span></div><div class="meta"><b>Karim Benali</b> · 8 nov. 2026, 9 h 31</div>
+              <div class="comment"><div class="tag"><svg class="ico ico-xs" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Interne — jamais visible par le demandeur</div>Rappelée à 9 h 25. Son mot de passe avait expiré : réinitialisé à distance. J'attends sa confirmation avant de clôturer.</div></li>
+          </ol>
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <label style="font-size:14px;font-weight:500">Ajouter un commentaire interne <span class="should">Should</span></label>
+            <div class="textarea">Jamais visible par le demandeur</div>
+            <div class="row"><span class="small">Un commentaire publié ne peut plus être modifié.</span><span class="btn btn-secondary" style="width:auto;opacity:.5">Publier</span></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <div class="block">
+          <div class="lab">Statut</div>
+          <div class="cur">Actuel : <span class="badge ec">En cours</span></div>
+          <span class="btn btn-primary"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg> Marquer Traitée</span>
+          <div class="note">Depuis « En cours », seul le passage à « Traitée » est possible. Le retour à « Nouvelle » n'existe pas.</div>
+        </div>
+        <div class="block">
+          <div class="lab">Attribuée à <span class="should">Should</span></div>
+          <div class="select">Karim Benali (moi)</div>
+          <div style="margin-top:10px"><span class="link">Retirer l'attribution</span></div>
+        </div>
+        <div class="block">
+          <div class="lab">Priorité <span class="should">Should</span></div>
+          <div class="seg"><span class="on">Normale</span><span>Urgente</span></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+<div class="toast" role="status"><span class="ok"><svg class="ico ico-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>Commentaire publié</div>
+</div>
+
+<section class="annex">
+  <div>
+    <h3>Vue administrateur (Sophie) — confirmation de suppression (FR-28)</h3>
+    <div class="mini" style="margin-bottom:16px">
+      <div class="lab">Zone administrateur — en bas du panneau d'actions</div>
+      <span class="btn-ghost-danger"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg> Supprimer la demande…</span>
+      <div class="note">Invisible pour un collaborateur (FR-24).</div>
+    </div>
+    <div class="stage">
+      <div class="dialog" role="dialog"><div class="bub err-b" style="margin:0 0 14px"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></div>
+        <h4>Supprimer définitivement la demande <span style="font-family:var(--mono)">NOVA-2026-0042</span> ?</h4>
+        <p>La demande et tout son historique seront effacés. Cette action est irréversible.</p>
+        <div class="actions"><span class="btn btn-secondary focus">Annuler</span><span class="btn btn-danger">Supprimer définitivement</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Erreur — modifiée entre-temps par un collègue (FR-16)</h3>
+    <div class="mini">
+      <div class="info"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg> Cette demande a été modifiée par Lucas Bernard à 9 h 11. L'affichage a été mis à jour.</div>
+      <div class="card" style="margin:0">
+        <h3 style="font-size:16px">Historique (extrait)</h3>
+        <ol class="tl">
+          <li><div class="what"><b>Statut : Nouvelle → En cours</b></div><div class="meta"><b>Lucas Bernard</b> · 9 h 11</div></li>
+          <li class="new"><div class="what"><b>Statut : En cours → Traitée</b></div><div class="meta"><b>Karim Benali</b> · 9 h 12</div></li>
+        </ol>
+        <div class="note">Chaque ligne indique le statut réellement en place juste avant l'action.</div>
+      </div>
+    </div>
+    <h3 style="margin-top:24px">Chargement</h3>
+    <div class="mini">
+      <div style="background:#E2E8F0;height:14px;width:140px;border-radius:6px;margin-bottom:10px"></div>
+      <div style="background:#E2E8F0;height:26px;width:60%;border-radius:6px;margin-bottom:20px"></div>
+      <div style="display:grid;grid-template-columns:1fr 200px;gap:16px">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px"><div style="background:#E2E8F0;height:12px;border-radius:6px;margin-bottom:10px"></div><div style="background:#E2E8F0;height:12px;border-radius:6px;margin-bottom:10px;width:85%"></div><div style="background:#E2E8F0;height:12px;border-radius:6px;width:60%"></div></div>
+        <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px"><div style="background:#E2E8F0;height:44px;border-radius:10px"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const simulation = vi.hoisted(() => {
   const rpc = vi.fn(() => ({
-    abortSignal: vi.fn().mockResolvedValue({ data: "NOVA-2026-0001", error: null }),
+    abortSignal: vi.fn().mockResolvedValue({
+      data: [{ reference: "NOVA-2026-0001", objet: "Objet", email: "claire@exemple.fr" }],
+      error: null,
+    }),
   }));
   return { rpc, creerClientSecret: vi.fn(() => ({ rpc })) };
 });
@@ -20,7 +23,7 @@ import { CODES_REFUS_PREVUS, deposerDemande } from "@/server/depot";
 import { LONGUEUR_MINIMALE_DESCRIPTION, LONGUEURS_MAXIMALES } from "@/shared/constantes";
 import { validerDepot } from "@/shared/schemas/depot";
 
-import { SAISIE_DE_CLAIRE } from "../aides/formulaire-depot";
+import { NUMERO_ENVOI, SAISIE_DE_CLAIRE } from "../aides/formulaire-depot";
 import {
   BRUT,
   definitionColonne,
@@ -28,6 +31,7 @@ import {
   DOSSIER_MIGRATIONS,
   FICHIERS_DEPOT,
   fonctionDeposerDemande,
+  fonctionDeposerDemandeEnvoi,
   SIGNATURE_DEPOSER_DEMANDE,
   SQL,
   TABLES_DEPOT,
@@ -219,17 +223,19 @@ describe("droits (AD-9)", () => {
 });
 
 describe("deposer_demande (AD-2, AD-4)", () => {
-  it("a les mêmes noms de paramètres que ceux envoyés par le serveur", async () => {
+  it("a 8 paramètres ; le serveur appelle la version à numéro d'envoi (story 1.4), qui en a un de plus", async () => {
     const { parametres } = fonctionDeposerDemande();
     expect(parametres).toHaveLength(8);
+    const { parametres: parametresEnvoi } = fonctionDeposerDemandeEnvoi();
+    expect(parametresEnvoi).toEqual([...parametres, "p_numero_envoi"]);
 
     const validation = validerDepot(SAISIE_DE_CLAIRE);
     if (!validation.ok) throw new Error("la saisie de Claire doit être correcte");
-    await deposerDemande(validation.donnees);
+    await deposerDemande(validation.donnees, NUMERO_ENVOI);
 
     const [nomFonction, charge] = simulation.rpc.mock.calls[0] as unknown as [string, Record<string, unknown>];
     expect(nomFonction).toBe("deposer_demande");
-    expect(Object.keys(charge).sort()).toEqual([...parametres].sort());
+    expect(Object.keys(charge).sort()).toEqual([...parametresEnvoi].sort());
   });
 
   it("refuse avant d'écrire : case non cochée (NV001), catégorie inactive (NV002)", () => {
@@ -321,7 +327,7 @@ describe("aucune écriture directe dans une table depuis l'application (AD-2, AD
     }
   });
 
-  it("le module du dépôt (src/server/depot) ne lit que les tables `categories` et `parametres`", () => {
+  it("le module du dépôt (src/server/depot) ne lit que les tables `categories` et `parametres`, jamais `demandes`", () => {
     // Seulement ce module : les stories suivantes liront d'autres tables
     // ailleurs, avec leurs propres règles.
     const lectures = sources
@@ -332,6 +338,8 @@ describe("aucune écriture directe dans une table depuis l'application (AD-2, AD
       );
     expect(lectures).toEqual([
       { table: "categories", chemin: "src/server/depot/index.ts" },
+      { table: "parametres", chemin: "src/server/depot/index.ts" },
+      // Contacts de Nova (story 1.4).
       { table: "parametres", chemin: "src/server/depot/index.ts" },
     ]);
   });

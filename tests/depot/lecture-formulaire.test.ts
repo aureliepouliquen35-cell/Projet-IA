@@ -40,9 +40,9 @@ vi.mock("@/server/supabase-secret", () => ({
   creerClientSecret: simulation.creerClientSecret,
 }));
 
-import { lireFormulaireDepot } from "@/server/depot";
+import { lireContactsNova, lireFormulaireDepot } from "@/server/depot";
 
-import { CATEGORIES, CONTACT_DONNEES } from "../aides/formulaire-depot";
+import { CATEGORIES, CONTACT_DONNEES, CONTACTS_NOVA } from "../aides/formulaire-depot";
 
 beforeEach(() => {
   simulation.retours.categories = { data: CATEGORIES, error: null };
@@ -113,5 +113,53 @@ describe("lireFormulaireDepot", () => {
   it("lève une erreur si la table des paramètres est vide", async () => {
     simulation.retours.parametres = { data: [], error: null };
     await expect(lireFormulaireDepot()).rejects.toThrow(/contact données/);
+  });
+});
+
+describe("lireContactsNova (FR-31)", () => {
+  beforeEach(() => {
+    simulation.retours.parametres = {
+      data: [{ telephone: "01 99 00 00 00", email_contact: "contact@nova-services.example" }],
+      error: null,
+    };
+  });
+
+  it("renvoie le téléphone et l'email de contact", async () => {
+    await expect(lireContactsNova()).resolves.toEqual(CONTACTS_NOVA);
+  });
+
+  it("ne lit que ces deux colonnes, dans les paramètres seulement, avec un délai maximum", async () => {
+    await lireContactsNova();
+    expect(simulation.from.mock.calls.map(([table]) => table)).toEqual(["parametres"]);
+    expect(simulation.appels.parametres).toEqual([
+      ["select", "telephone, email_contact"],
+      ["limit", 1],
+      ["abortSignal", expect.any(AbortSignal)],
+    ]);
+  });
+
+  it.each([null, "", "   "])("téléphone absent (%j) : null", async (telephone) => {
+    simulation.retours.parametres = {
+      data: [{ telephone, email_contact: "contact@nova-services.example" }],
+      error: null,
+    };
+    await expect(lireContactsNova()).resolves.toEqual({
+      telephone: null,
+      emailContact: "contact@nova-services.example",
+    });
+  });
+
+  it("lève une erreur si la base refuse ou ne répond pas : la page affiche S3", async () => {
+    simulation.retours.parametres = { data: null, error: { code: "42501", message: "permission denied" } };
+    await expect(lireContactsNova()).rejects.toThrow(/code 42501/);
+    simulation.retours.parametres = { data: null, error: { code: "", message: "TimeoutError" } };
+    await expect(lireContactsNova()).rejects.toThrow(/code inconnu/);
+  });
+
+  it("lève une erreur si l'email de contact manque", async () => {
+    for (const data of [[], [{ telephone: "01 99 00 00 00", email_contact: "" }], [{ telephone: "01 99 00 00 00" }]]) {
+      simulation.retours.parametres = { data, error: null };
+      await expect(lireContactsNova()).rejects.toThrow(/email de contact/);
+    }
   });
 });

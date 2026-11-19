@@ -1,12 +1,13 @@
-// Textes des écrans d'erreur, des réponses d'erreur et des erreurs de saisie
-// (EXPERIENCE.md). Repris mot pour mot : ne pas reformuler ici sans changer
-// l'UX.
+// Textes des écrans d'erreur, des réponses d'erreur, des erreurs de saisie et
+// de l'écran de confirmation (EXPERIENCE.md). Repris mot pour mot : ne pas
+// reformuler ici sans changer l'UX.
 
 import {
   formaterNombre,
   LONGUEUR_MINIMALE_DESCRIPTION,
   LONGUEURS_MAXIMALES,
 } from "@/shared/constantes";
+import type { ContactsNova } from "@/shared/contacts";
 
 /** S3 et réponse `ERREUR_INTERNE`. */
 export const MESSAGE_ERREUR_INATTENDUE = "Une erreur inattendue s'est produite.";
@@ -55,8 +56,36 @@ export const MESSAGES_DEPOT = {
 } as const;
 
 /**
- * Réussite provisoire du dépôt : l'écran de confirmation P2 arrive avec la
- * story 1.4.
+ * Panne à l'envoi du formulaire de dépôt (P1, « Erreur technique », FR-4).
+ * Le téléphone de Nova (FR-31) termine le message ; s'il n'est pas
+ * renseigné, c'est l'email de contact.
  */
-export const MESSAGE_DEMANDE_ENREGISTREE =
-  "Votre demande a bien été enregistrée.";
+export const MESSAGES_PANNE_DEPOT = {
+  titre: "Votre demande n'a pas pu être envoyée.",
+  suite: "Vos informations sont conservées : réessayez dans un instant.",
+  appel: "Si le problème continue, appelez-nous au",
+  ecrit: "Si le problème continue, écrivez-nous à",
+} as const;
+
+/** Message de panne complet, tel qu'il se lit à l'écran. */
+export function messagePanneDepot(contacts: ContactsNova): string {
+  const { titre, suite, appel, ecrit } = MESSAGES_PANNE_DEPOT;
+  const fin = contacts.telephone
+    ? `${appel} ${contacts.telephone}.`
+    : `${ecrit} ${contacts.emailContact}.`;
+  return `${titre} ${suite} ${fin}`;
+}
+
+/**
+ * Écran de confirmation P2 (FR-4, FR-31). Le titre est le texte exact de
+ * FR-4, sans point final.
+ */
+export const MESSAGES_CONFIRMATION = {
+  titre: "Votre demande a bien été enregistrée",
+  votreReference: "Votre référence",
+  notezLa: "Notez-la : elle vous sera demandée si nous vous rappelons.",
+  objet: "Objet",
+  reponseA: "Nous vous répondrons à",
+  questionUrgente: "Une question urgente ?",
+  autreDemande: "Déposer une autre demande",
+} as const;

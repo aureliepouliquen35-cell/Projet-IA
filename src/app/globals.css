@@ -127,6 +127,12 @@
   --text-reference--letter-spacing: 0.01em;
   --text-reference--font-weight: 500;
 
+  /* Référence agrandie de l'écran de confirmation P2 (DESIGN.md : 28 px). */
+  --text-reference-confirmation: 28px;
+  --text-reference-confirmation--line-height: 1.2;
+  --text-reference-confirmation--letter-spacing: 0.01em;
+  --text-reference-confirmation--font-weight: 500;
+
   /* ---- Coins ---- */
   --radius-sm: 6px;
   --radius-md: 10px;

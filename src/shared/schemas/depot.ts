@@ -65,8 +65,8 @@ const texteFacultatif = (maximum: number, message: string) =>
     .nullish()
     .transform((texte) => texte || null);
 
-/** Forme d'un identifiant de catégorie (UUID). */
-const FORME_IDENTIFIANT =
+/** Forme d'un identifiant (UUID) : catégorie, numéro d'envoi (AD-20). */
+export const FORME_IDENTIFIANT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const schemaDepot = z.object({

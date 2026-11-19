@@ -57,3 +57,37 @@ export function fonctionDeposerDemande(): { parametres: string[]; entete: string
     corps,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Migration « numéro d'envoi » (story 1.4) : nouvelle `deposer_demande` à
+// 9 paramètres. L'ancienne, à 8 paramètres, reste dans la migration 1.3.
+// ---------------------------------------------------------------------------
+
+export const FICHIERS_NUMERO_ENVOI = readdirSync(DOSSIER_MIGRATIONS).filter((fichier) =>
+  fichier.endsWith("_numero_envoi.sql"),
+);
+
+/** Texte d'origine de la migration « numéro d'envoi ». */
+export const BRUT_NUMERO_ENVOI =
+  FICHIERS_NUMERO_ENVOI.length === 1
+    ? readFileSync(join(DOSSIER_MIGRATIONS, FICHIERS_NUMERO_ENVOI[0]), "utf8")
+    : "";
+
+/** Sans les commentaires, en minuscules. */
+export const SQL_NUMERO_ENVOI = BRUT_NUMERO_ENVOI.replace(/--.*$/gm, "").toLowerCase();
+
+export const SIGNATURE_DEPOSER_DEMANDE_ENVOI =
+  "public.deposer_demande(text, text, text, text, uuid, text, text, boolean, uuid)";
+
+/** Paramètres, en-tête et corps de la `deposer_demande` à 9 paramètres. */
+export function fonctionDeposerDemandeEnvoi(): { parametres: string[]; entete: string; corps: string } {
+  const [, liste = "", entete = "", corps = ""] =
+    SQL_NUMERO_ENVOI.match(
+      /create function public\.deposer_demande\(([\s\S]*?)\)\s*(returns[\s\S]*?)as \$\$([\s\S]*?)\$\$;/,
+    ) ?? [];
+  return {
+    parametres: [...liste.matchAll(/(p_\w+)\s+\w+/g)].map(([, nom]) => nom),
+    entete: entete.replace(/\s+/g, " "),
+    corps,
+  };
+}

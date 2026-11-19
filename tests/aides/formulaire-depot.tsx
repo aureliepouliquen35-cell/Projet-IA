@@ -5,6 +5,7 @@ import {
   VueFormulaireDepot,
   type EtatDepot,
 } from "@/app/(public)/formulaire-depot";
+import type { ContactsNova } from "@/shared/contacts";
 import type { ValeursDepot } from "@/shared/schemas/depot";
 
 // Aides des tests du formulaire de dépôt (P1) : les données d'essai et le
@@ -22,6 +23,15 @@ export const CATEGORIES = [
 
 export const CONTACT_DONNEES = "donnees@nova-services.example";
 
+/** Contacts de Nova (FR-31), valeurs fictives de la migration 1.3. */
+export const CONTACTS_NOVA: ContactsNova = {
+  telephone: "01 99 00 00 00",
+  emailContact: "contact@nova-services.example",
+};
+
+/** Un numéro d'envoi (UUID), comme le formulaire en tire un (AD-20). */
+export const NUMERO_ENVOI = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+
 /** La saisie de Claire (EXPERIENCE.md, Flux 1), complète et correcte. */
 export const SAISIE_DE_CLAIRE: ValeursDepot = {
   nom: "Claire Martin",
@@ -35,18 +45,26 @@ export const SAISIE_DE_CLAIRE: ValeursDepot = {
   personneInformee: true,
 };
 
+/** La ligne que `deposer_demande` renvoie pour la demande de Claire. */
+export const LIGNE_DEPOSEE = {
+  reference: "NOVA-2026-0001",
+  objet: SAISIE_DE_CLAIRE.objet,
+  email: SAISIE_DE_CLAIRE.email,
+};
+
 export function etatAvec(modifications: Partial<EtatDepot> = {}): EtatDepot {
   return { ...ETAT_DEPOT_INITIAL, ...modifications };
 }
 
 export function rendreVue(
   etat: EtatDepot = ETAT_DEPOT_INITIAL,
-  options: { envoiEnCours?: boolean } = {},
+  options: { envoiEnCours?: boolean; contacts?: ContactsNova } = {},
 ): string {
   return renderToStaticMarkup(
     <VueFormulaireDepot
       categories={CATEGORIES}
       contactDonnees={CONTACT_DONNEES}
+      contacts={options.contacts ?? CONTACTS_NOVA}
       etat={etat}
       envoiEnCours={options.envoiEnCours}
     />,

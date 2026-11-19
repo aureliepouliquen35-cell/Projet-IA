@@ -12,15 +12,22 @@ vi.mock("@/server/actions/deposer-demande", () => ({
   actionDeposerDemande: vi.fn(),
 }));
 
-import { ReussiteDepot } from "@/app/(public)/formulaire-depot";
+import { VueConfirmation } from "@/app/(public)/confirmation/vue-confirmation";
 import PageDepot from "@/app/(public)/page";
 import { MESSAGES_DEPOT } from "@/shared/messages";
 
-import { etatAvec, rendreVue, SAISIE_DE_CLAIRE } from "../aides/formulaire-depot";
+import {
+  CONTACTS_NOVA,
+  etatAvec,
+  LIGNE_DEPOSEE,
+  rendreVue,
+  SAISIE_DE_CLAIRE,
+} from "../aides/formulaire-depot";
 
-// AD-19 : le thème compilé depuis globals.css fournit toutes les classes de la
-// page d'accueil (le formulaire de dépôt, dans tous ses états), sans mode
-// sombre selon le système ni couleur par défaut de Tailwind.
+// AD-19 : le thème compilé depuis globals.css fournit toutes les classes des
+// pages publiques (le formulaire de dépôt dans tous ses états, l'écran de
+// confirmation P2), sans mode sombre selon le système ni couleur par défaut
+// de Tailwind.
 
 const fichierCss = join(process.cwd(), "src", "app", "globals.css");
 
@@ -43,10 +50,16 @@ function classesDeLaPage(): string[] {
         resumeVisible: true,
       }),
     ),
-    // Envoi en cours, panne, réussite.
+    // Envoi en cours, panne (avec et sans téléphone), passage à P2.
     rendreVue(etatAvec({ valeurs: SAISIE_DE_CLAIRE }), { envoiEnCours: true }),
-    rendreVue(etatAvec({ erreurEnvoi: "Une erreur inattendue s'est produite." })),
-    renderToStaticMarkup(<ReussiteDepot reference="NOVA-2026-0001" />),
+    rendreVue(etatAvec({ panne: true })),
+    rendreVue(etatAvec({ panne: true }), { contacts: { ...CONTACTS_NOVA, telephone: null } }),
+    rendreVue(etatAvec({ valeurs: SAISIE_DE_CLAIRE, redirection: true })),
+    // Écran de confirmation P2, avec et sans téléphone.
+    renderToStaticMarkup(<VueConfirmation confirmation={LIGNE_DEPOSEE} contacts={CONTACTS_NOVA} />),
+    renderToStaticMarkup(
+      <VueConfirmation confirmation={LIGNE_DEPOSEE} contacts={{ ...CONTACTS_NOVA, telephone: null }} />,
+    ),
   ].join("\n");
 
   const classes = new Set<string>();
@@ -88,7 +101,7 @@ describe("thème compilé (globals.css)", () => {
     expect(css).toMatch(new RegExp(`\\.${classe}\\s*\\{`));
   });
 
-  it("produit une règle pour chaque classe du formulaire de dépôt", () => {
+  it("produit une règle pour chaque classe du formulaire de dépôt et de la confirmation", () => {
     // Une classe sans règle serait une faute de frappe ou un token absent du
     // thème : l'élément s'afficherait sans son habillage.
     const sansRegle = classes.filter(
@@ -111,6 +124,21 @@ describe("thème compilé (globals.css)", () => {
     expect(css).toMatch(/\.size-5\\\.5\s*\{/);
     expect(css).toMatch(/\.animate-apres-300ms\s*\{[^}]*animation:/);
     expect(css).toMatch(/@keyframes apparition/);
+  });
+
+  it("habille la confirmation P2 : référence de 28 px en chasse fixe, encadré à bord violet en dégradé", () => {
+    expect(css).toMatch(/\.text-reference-confirmation\s*\{[^}]*font-size:\s*var\(--text-reference-confirmation\)/);
+    expect(css).toMatch(/--text-reference-confirmation:\s*28px/);
+    for (const classe of [
+      "font-mono",
+      "border-l-accent-nova",
+      "bg-linear-to-b",
+      "from-background",
+      "to-accent-nova-soft",
+      "text-success",
+    ]) {
+      expect(classes).toContain(classe);
+    }
   });
 
   it("n'active aucun mode sombre selon le réglage du système", () => {

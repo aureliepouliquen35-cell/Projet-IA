@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { Logo } from "@/components/logo";
-import { lireFormulaireDepot } from "@/server/depot";
+import { lireContactsNova, lireFormulaireDepot } from "@/server/depot";
 
 import { FormulaireDepot } from "./formulaire-depot";
 
@@ -12,7 +12,8 @@ import { FormulaireDepot } from "./formulaire-depot";
 // 560 px au plus sur grand écran).
 //
 // L'en-tête et le titre forment la coque statique de la page. Les catégories
-// et le contact « données personnelles » changent sans mise en production
+// et les contacts (« données personnelles », téléphone et email de Nova)
+// changent sans mise en production
 // (FR-26, FR-31) : ils sont lus à chaque visite, sous `<Suspense>`, jamais
 // dans la coque.
 
@@ -40,16 +41,26 @@ export default function PageDepot() {
 }
 
 /**
- * Lit les catégories actives et le contact données, puis affiche le
+ * Lit les catégories actives, le contact données et les contacts de Nova
+ * (téléphone et email, montrés si l'envoi tombe en panne), puis affiche le
  * formulaire. Si la base est injoignable, l'erreur remonte : la page affiche
  * l'écran S3 (`error.tsx`).
  */
 async function FormulaireCharge() {
   // Lecture à chaque visite, jamais pendant la compilation.
   await connection();
-  const { categories, contactDonnees } = await lireFormulaireDepot();
+  const [{ categories, contactDonnees }, contacts] = await Promise.all([
+    lireFormulaireDepot(),
+    lireContactsNova(),
+  ]);
 
-  return <FormulaireDepot categories={categories} contactDonnees={contactDonnees} />;
+  return (
+    <FormulaireDepot
+      categories={categories}
+      contactDonnees={contactDonnees}
+      contacts={contacts}
+    />
+  );
 }
 
 /**

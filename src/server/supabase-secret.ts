@@ -8,7 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 //
 // Il ne doit être importé que par les modules autorisés : `src/server/admin`,
 // `src/server/depot`, `src/server/connexion` et `src/server/journal`
-// (règle ESLint à venir, story 1.3).
+// (règle ESLint d'`eslint.config.mjs` : `npm run lint` signale tout autre import,
+// et toute lecture de la variable ailleurs que dans ce fichier).
 //
 // Aucune session : ce client n'agit jamais au nom d'un utilisateur connecté.
 export function creerClientSecret() {

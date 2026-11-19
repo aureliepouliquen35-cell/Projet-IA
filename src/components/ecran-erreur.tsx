@@ -12,8 +12,8 @@ import { MESSAGE_ERREUR_INATTENDUE, MESSAGE_PAGE_INTROUVABLE } from "@/shared/me
 // comme par `error.tsx` et `global-error.tsx` (navigateur), qui leur passent
 // le code, l'heure et la page.
 //
-// Liens vers les demandes (personne connectée, stories 1.6 et 1.8) et
-// téléphone de Nova sur S3 (story 1.3) : à venir.
+// Liens vers les demandes (personne connectée, stories 1.6 et 1.8) : à venir.
+// Téléphone de Nova sur S3 : reporté (voir deferred-work.md, story 1.3).
 
 function EcranErreur({
   icone,

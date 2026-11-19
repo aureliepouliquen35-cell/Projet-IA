@@ -146,6 +146,21 @@
   --spacing-sidebar: 240px;
   --container-form: 560px;
   --container-content: 1200px;
+
+  /* ---- Chargement ----
+     Un squelette n'apparaît qu'après 300 ms, d'un coup : un chargement plus
+     court n'affiche rien de spécial (EXPERIENCE.md, State Patterns). Ce
+     n'est pas une animation visible : le squelette lui-même ne bouge pas. */
+  --animate-apres-300ms: apparition 1ms linear 300ms both;
+
+  @keyframes apparition {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {

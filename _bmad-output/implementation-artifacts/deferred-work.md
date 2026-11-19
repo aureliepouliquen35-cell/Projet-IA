@@ -13,3 +13,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-2-enregistrer-erreurs-support.md`
   summary: Dans la documentation Support (story 5.3), expliquer qu'on retrouve une erreur de page avec le code ET l'heure affichés par S3, car la même erreur garde le même code.
   evidence: Vérification d'Aurel le 19 nov. 2026 : trois ouvertures de /essais/erreur donnent toutes le code 1U8B2KJ ; décision de garder ce fonctionnement (code calculé par Next.js à partir de l'erreur).
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deposer-demande.md`
+  summary: Afficher le téléphone de Nova sur l'écran S3 côté public (EXPERIENCE.md : « Déposer une demande » côté public, avec le téléphone de Nova).
+  evidence: La spec 1.2 l'annonçait pour la story 1.3 (« table `parametres` »), mais la story 1.3 ne le demande pas et sa spec l'exclut. La table `parametres` existe désormais (colonne `telephone`), mais S3 s'affiche justement quand la base peut être injoignable : il faut décider d'où vient le numéro dans ce cas. À rattacher à la story 1.4, qui affiche déjà ce téléphone dans le message « Votre demande n'a pas pu être envoyée… ».
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deposer-demande.md`
+  summary: Créer les index des clés étrangères `evenements.demande_id` et `demandes.categorie_id` avec les stories qui lisent ces tables.
+  evidence: La migration 1.3 ne crée que les index imposés par ses contraintes (la spec exclut les index de lecture). L'historique d'une demande (1.10), le filtre par catégorie (1.8) et la suppression en cascade (FR-28) en auront besoin ; Postgres n'indexe pas seul une clé étrangère.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deposer-demande.md`
+  summary: Exécuter réellement le SQL dans les tests (déclencheur de la référence, droits réels par rôle, verrou du compteur, refus `NV001` / `NV002` sans numéro consommé), au lieu de lire le texte de la migration.
+  evidence: Les tests de `tests/regles` et `tests/depot` vérifient le texte SQL ; le comportement réel a été prouvé une fois à la main sur dev (bloc `do` annulé, 56 vérifications). Il faut une base de test (Docker, absent du poste, ou transaction annulée scriptée sur dev). Rejoint l'entrée de la story 1.1 sur les droits réels.

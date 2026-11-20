@@ -56,3 +56,9 @@ export function compterCaracteres(texte: string): number {
 export function formaterNombre(nombre: number): string {
   return String(nombre).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+
+/** Libellé de chaque rôle, tel qu'il s'affiche. */
+export const LIBELLES_ROLES: Record<Role, string> = {
+  collaborateur: "Collaborateur",
+  administrateur: "Administrateur",
+};

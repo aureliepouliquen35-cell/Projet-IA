@@ -31,3 +31,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-creer-premier-compte-administrateur.md`
   summary: Exécuter réellement `creer_profil` et `modifier_parametres` dans les tests : profil et empreinte `$2…` pour un compte Auth au bon email, refus NV101 (email différent), NV102, 23505 (email en double), mise à jour de l'unique ligne, NV103, NV104.
   evidence: Les tests de la story 1.5 lisent le texte SQL et simulent la base (les codes d'erreur y sont écrits à la main) ; seule la vérification manuelle sur dev (docs/deploiement.md, étapes 4 et 5) prouve le comportement réel. Rejoint les entrées des stories 1.1, 1.3 et 1.4 sur une base de test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-se-connecter-se-deconnecter.md`
+  summary: Exécuter réellement `connexion_bloquee`, `enregistrer_tentative` et la règle RLS `profils_lecture_soi_meme` dans les tests (seuil de 5, fenêtre de 15 min, remise à zéro après une réussite, effacement après 24 h, lecture de sa seule ligne par `authenticated`).
+  evidence: Les tests de la story 1.6 lisent le texte SQL et simulent la base (copie JavaScript de la règle dans `tests/aides/supabase-connexion.ts`) ; seule la vérification à l'écran sur dev prouve le comportement réel. Rejoint les entrées des stories 1.1, 1.3, 1.4 et 1.5 sur une base de test.

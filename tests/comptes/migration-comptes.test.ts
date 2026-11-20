@@ -28,10 +28,16 @@ const SIGNATURE_CREER_PROFIL = "public.creer_profil(uuid, text, text, text, text
 const SIGNATURE_MODIFIER_PARAMETRES = "public.modifier_parametres(text, text, text)";
 
 describe("fichier de migration", () => {
-  it("est une nouvelle migration, postérieure aux autres (AD-16)", () => {
+  it("est une nouvelle migration, postérieure à celles des stories précédentes (AD-16)", () => {
     expect(FICHIERS).toEqual(["20261120090000_comptes.sql"]);
     const toutes = readdirSync(DOSSIER).filter((f) => f.endsWith(".sql")).sort();
-    expect(toutes.at(-1)).toBe("20261120090000_comptes.sql");
+    const precedentes = toutes.slice(0, toutes.indexOf("20261120090000_comptes.sql"));
+    expect(precedentes).toEqual([
+      "20261108201012_socle_droits.sql",
+      "20261119090000_journal_technique.sql",
+      "20261119180000_depot_demande.sql",
+      "20261119210000_numero_envoi.sql",
+    ]);
   });
 
   it("ne touche à aucune table des migrations précédentes, sauf par modifier_parametres", () => {

@@ -126,3 +126,31 @@ export const MESSAGES_CONFIRMATION = {
   questionUrgente: "Une question urgente ?",
   autreDemande: "Déposer une autre demande",
 } as const;
+
+/**
+ * Connexion I1 (EXPERIENCE.md, FR-8). Les deux messages d'échec sont les
+ * seuls possibles, que l'email ait un compte ou non (AD-8). Les messages
+ * de saisie suivent la forme de ceux du formulaire de dépôt.
+ */
+export const MESSAGES_CONNEXION = {
+  titre: "Espace interne Nova Services",
+  email: "Email",
+  motDePasse: "Mot de passe",
+  afficher: "Afficher",
+  masquer: "Masquer",
+  seConnecter: "Se connecter",
+  connexionEnCours: "Connexion…",
+  motDePasseOublie: "Mot de passe oublié ? Contactez votre administrateur.",
+  identifiantsIncorrects: "Identifiants incorrects",
+  tropDeTentatives: "Trop de tentatives, réessayez plus tard",
+  emailObligatoire: "L'email est obligatoire",
+  emailForme: "L'email doit avoir la forme nom@exemple.fr",
+  emailTropLong: depasse("L'email", LONGUEURS_MAXIMALES.email),
+  motDePasseObligatoire: "Le mot de passe est obligatoire",
+} as const;
+
+/** Espace interne : en-tête et déconnexion (FR-9). */
+export const MESSAGES_INTERNE = {
+  seDeconnecter: "Se déconnecter",
+  deconnexionEnCours: "Déconnexion…",
+} as const;

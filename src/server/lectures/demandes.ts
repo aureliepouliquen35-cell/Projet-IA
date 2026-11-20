@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigerUtilisateur } from "@/server/garde";
 import { journaliser } from "@/server/journal";
 import { attendre, ATTENTE_ESSAI_LENT_MS, modeEssaiListe } from "@/server/lectures/essai";
+import { lireRecherche } from "@/shared/adresse-liste";
 import { nouveauCodeSupport } from "@/shared/code-support";
 import { FORME_REFERENCE, STATUTS, TAILLE_PAGE, type Statut } from "@/shared/constantes";
 import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
@@ -49,7 +50,9 @@ export type LigneDemande = {
 
 /** Une page de la liste. */
 export type ListeDemandes = {
-  /** Nombre total de demandes. */
+  /** Texte cherché, déjà nettoyé (`lireRecherche`) ; vide : toute la liste. */
+  recherche: string;
+  /** Nombre de demandes correspondant à la recherche (toutes si `recherche` est vide). */
   total: number;
   /** Page affichée, déjà ramenée entre 1 et la dernière par la base. */
   page: number;
@@ -139,19 +142,34 @@ export function lirePage(valeur: string | string[] | undefined): number {
 }
 
 /**
- * Une page de la liste des demandes (FR-11, RM-6) : toutes les demandes,
- * des plus récentes aux plus anciennes, 25 par page.
+ * Une page de la liste des demandes (FR-11, FR-12, RM-6) : toutes les
+ * demandes, ou celles qui contiennent le texte cherché (référence, nom,
+ * email, entreprise ou objet, sans tenir compte des majuscules ni des
+ * accents : la base s'en charge), des plus récentes aux plus anciennes,
+ * 25 par page.
+ *
+ * Le texte cherché peut contenir un nom ou un email : il n'est jamais
+ * journalisé, ni écrit dans un message d'erreur (AD-12, AD-13).
  */
 export const lireListeDemandes = cache(
-  async (page: number): Promise<ResultatLecture<ListeDemandes>> => {
+  async (page: number, q = ""): Promise<ResultatLecture<ListeDemandes>> => {
     await exigerUtilisateur();
+    const recherche = lireRecherche(q);
 
     return lire("lister_demandes", async () => {
-      if ((await essai()) === "vide") return { total: 0, page: 1, pages: 1, demandes: [] };
+      if ((await essai()) === "vide") {
+        return { recherche, total: 0, page: 1, pages: 1, demandes: [] };
+      }
 
       const supabase = await createClient();
       const { data, error } = await supabase
-        .rpc("lister_demandes", { p_page: page, p_taille: TAILLE_PAGE })
+        // `p_q` seulement pour une vraie recherche : la liste simple reste
+        // l'appel de la story 1.8.
+        .rpc("lister_demandes", {
+          p_page: page,
+          p_taille: TAILLE_PAGE,
+          ...(recherche ? { p_q: recherche } : {}),
+        })
         .abortSignal(AbortSignal.timeout(DELAI_MS));
       if (error) {
         throw new Error(`La fonction lister_demandes a échoué (code ${error.code || "inconnu"}).`);
@@ -162,6 +180,7 @@ export const lireListeDemandes = cache(
       const { total, page: pageLue, demandes } = resultat.data;
 
       return {
+        recherche,
         total,
         page: pageLue,
         pages: nombrePages(total),

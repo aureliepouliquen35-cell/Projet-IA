@@ -20,11 +20,18 @@ import { compterATraiter, lireListeDemandes } from "@/server/lectures/demandes";
 import { fabriquerDemandes, ID_KARIM } from "../aides/supabase-connexion";
 
 const DOSSIER = join(process.cwd(), "supabase", "migrations");
-const FICHIER = readdirSync(DOSSIER).find((f) => f.endsWith("_liste_demandes.sql"))!;
-const SQL = readFileSync(join(DOSSIER, FICHIER), "utf8").replace(/--.*$/gm, "").toLowerCase();
+/** Texte des migrations, sans les commentaires, en minuscules, de la plus ancienne à la plus récente. */
+const MIGRATIONS = readdirSync(DOSSIER)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(join(DOSSIER, f), "utf8").replace(/--.*$/gm, "").toLowerCase());
 
-const corps = (nom: string) =>
-  SQL.match(new RegExp(`create function public\\.${nom}\\([\\s\\S]*?as \\$\\$([\\s\\S]*?)\\$\\$;`))?.[1] ?? "";
+/** Corps de la version en vigueur d'une fonction : celle de la dernière migration qui la crée. */
+function corps(nom: string): string {
+  const motif = new RegExp(`create function public\\.${nom}\\([\\s\\S]*?as \\$\\$([\\s\\S]*?)\\$\\$;`);
+  const sql = MIGRATIONS.findLast((texte) => motif.test(texte)) ?? "";
+  return sql.match(motif)?.[1] ?? "";
+}
 
 beforeEach(() => {
   simulation.reinitialiser();
@@ -42,17 +49,30 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
     },
   );
 
-  it("la liste compte toutes les demandes de la table, sans condition", () => {
-    expect(corps("lister_demandes")).toMatch(/select count\(\*\)::integer\s+into v_total\s+from public\.demandes;/);
+  it("la version en vigueur de lister_demandes est celle de la recherche (story 1.9)", () => {
+    expect(corps("lister_demandes")).toContain("v_q := public.normaliser_recherche(v_q);");
   });
 
-  it("le serveur n'envoie que la page et la taille, aucun identifiant de personne", async () => {
+  it("la liste compte les demandes de la table, sans autre condition que la recherche", () => {
+    const condition =
+      corps("lister_demandes").match(/select count\(\*\)::integer\s+into v_total\s+from public\.demandes d\s+where ([\s\S]*?);/)?.[1] ?? "";
+    const lignes = condition.split(/\s+or\s+/).map((ligne) => ligne.trim());
+    expect(lignes[0]).toBe("v_q = ''");
+    for (const ligne of lignes.slice(1)) {
+      expect(ligne).toMatch(/^strpos\(public\.normaliser_recherche\(d\.(reference|nom|email|entreprise|objet)\), v_q\) > 0$/);
+    }
+    expect(lignes).toHaveLength(6);
+  });
+
+  it("le serveur n'envoie que la page, la taille et le texte cherché, aucun identifiant de personne", async () => {
     await lireListeDemandes(1);
     await compterATraiter();
     expect(simulation.rpcSession.mock.calls).toEqual([
       ["lister_demandes", { p_page: 1, p_taille: 25 }],
       ["compter_a_traiter"],
     ]);
+    await lireListeDemandes(1, "helene");
+    expect(simulation.rpcSession).toHaveBeenLastCalledWith("lister_demandes", { p_page: 1, p_taille: 25, p_q: "helene" });
   });
 
   it.each(["collaborateur", "administrateur"])("un %s voit les 42 demandes", async (role) => {

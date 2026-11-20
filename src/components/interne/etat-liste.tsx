@@ -1,11 +1,14 @@
-import { CircleAlert, Inbox } from "lucide-react";
+import { CircleAlert, Inbox, Search } from "lucide-react";
+import Link from "next/link";
 
 import { BoutonReessayer } from "@/components/interne/bouton-reessayer";
+import { Button } from "@/components/ui/button";
+import { adresseListe } from "@/shared/adresse-liste";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
 // États de la liste des demandes (EXPERIENCE.md, I3) : vide (aucune demande
-// en base), erreur (lecture impossible) et chargement (squelette). Ils
-// prennent la place du tableau.
+// en base), recherche sans résultat, erreur (lecture impossible) et
+// chargement (squelette). Ils prennent la place du tableau.
 
 const CADRE = "flex flex-col items-center rounded-lg border bg-background px-5 py-7 text-center shadow-soft";
 const PASTILLE = "mb-3 flex size-11 items-center justify-center rounded-full";
@@ -19,6 +22,30 @@ export function EtatListeVide() {
       </span>
       <p className="text-body font-semibold text-text">{MESSAGES_LISTE.videTitre}</p>
       <p className="mt-1 text-body-sm text-text-muted">{MESSAGES_LISTE.videTexte}</p>
+    </div>
+  );
+}
+
+/**
+ * La recherche ne trouve rien (FR-12). « Réinitialiser » vide la recherche et
+ * réaffiche toute la liste (`/demandes`) ; la story 2.1 lui fera aussi
+ * retirer les filtres. Il remplace l'adresse, comme la recherche : Retour
+ * ne ramène pas à l'écran sans résultat. L'annonce aux lecteurs d'écran est
+ * faite par la zone toujours présente de `RechercheDemandes`.
+ */
+export function EtatRechercheVide() {
+  return (
+    <div data-slot="recherche-vide" className={CADRE}>
+      <span aria-hidden="true" className={`${PASTILLE} bg-accent-nova-soft text-accent-nova`}>
+        <Search />
+      </span>
+      <p className="text-body font-semibold text-text">{MESSAGES_LISTE.rechercheVideTitre}</p>
+      <p className="mt-1 mb-4 text-body-sm text-text-muted">{MESSAGES_LISTE.rechercheVideTexte}</p>
+      <Button asChild variant="secondaire">
+        <Link href={adresseListe()} replace>
+          {MESSAGES_LISTE.reinitialiser}
+        </Link>
+      </Button>
     </div>
   );
 }

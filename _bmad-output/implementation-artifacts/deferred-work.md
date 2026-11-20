@@ -49,3 +49,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-8-voir-demandes-compteur-a-traiter.md`
   summary: Exécuter réellement `exiger_utilisateur_interne`, `compter_a_traiter` et `lister_demandes` dans les tests (refus `NV201` sans session, compte inactif ou mot de passe à choisir ; colonne générée `a_traiter` ; page ramenée entre 1 et la dernière ; taille 1 à 100 ; tri date puis référence ; temps de réponse avec 5 000 demandes, NFR-13).
   evidence: Les tests de la story 1.8 lisent le texte SQL et simulent la base (copie JavaScript des règles dans `tests/aides/supabase-connexion.ts`) ; sur dev, seuls les refus d'`anon` et de `service_role` (`42501`) ont été vérifiés par appel REST. Rejoint les entrées des stories 1.1 à 1.7 sur une base de test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-9-retrouver-demande-recherche.md`
+  summary: Exécuter vraiment `lister_demandes` avec `p_q` sur une base Postgres de test (accents, majuscules, entreprise vide, `%` cherché tel quel), au lieu de la seule simulation JavaScript.
+  evidence: Les tests FR-12 vérifient une copie JavaScript de la règle (NFD, qui diffère de `unaccent` pour œ, ß, ø) et le texte de la migration ; aucune base de test n'existe dans le dépôt (même constat qu'en 1.8).

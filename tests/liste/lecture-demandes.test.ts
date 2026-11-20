@@ -117,7 +117,7 @@ describe("lireListeDemandes", () => {
   it("base vide : total 0, page 1, aucune ligne", async () => {
     await expect(lireListeDemandes(3)).resolves.toEqual({
       ok: true,
-      donnees: { total: 0, page: 1, pages: 1, demandes: [] },
+      donnees: { recherche: "", total: 0, page: 1, pages: 1, demandes: [] },
     });
   });
 
@@ -273,7 +273,7 @@ describe("ESSAI_LISTE_DEMANDES (développement seulement)", () => {
     simulation.demandes.push(...fabriquerDemandes(42, 5));
     await expect(lireListeDemandes(1)).resolves.toEqual({
       ok: true,
-      donnees: { total: 0, page: 1, pages: 1, demandes: [] },
+      donnees: { recherche: "", total: 0, page: 1, pages: 1, demandes: [] },
     });
     await expect(compterATraiter()).resolves.toEqual({ ok: true, donnees: 0 });
     expect(simulation.rpcSession).not.toHaveBeenCalled();

@@ -19,6 +19,9 @@ import { vi } from "vitest";
 //   `NV201` sans profil actif au mot de passe choisi, « à traiter » =
 //   Nouvelle ou Urgente non Traitée, taille ramenée entre 1 et 100, page
 //   entre 1 et la dernière, tri date puis référence décroissantes.
+//   Recherche (story 1.9, `p_q`) : nettoyée (bords, 150 caractères), sans
+//   accents ni majuscules, cherchée telle quelle dans la référence, le nom,
+//   l'email, l'entreprise et l'objet ; `total` = nombre de résultats.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -65,11 +68,37 @@ export type DemandeSimulee = {
   /** ISO, comme `to_jsonb(timestamptz)`. */
   date_depot: string;
   nom: string;
+  /** Cherché par la recherche (story 1.9), jamais renvoyé par la liste. */
+  email: string;
+  /** Cherchée par la recherche, jamais renvoyée par la liste ; facultative. */
+  entreprise: string | null;
   objet: string;
   categorie: string;
   statut: "nouvelle" | "en_cours" | "traitee";
   priorite: "normale" | "urgente";
 };
+
+/** `normaliser_recherche` de la migration 1.9 : sans accents, en minuscules. */
+export function normaliserRecherche(texte: string): string {
+  return texte.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/**
+ * Nettoyage de `p_q` par la migration 1.9 : espaces de bord retirés,
+ * 150 caractères au plus, sans accents ni majuscules.
+ */
+function nettoyerRecherche(valeur: unknown): string {
+  if (typeof valeur !== "string") return "";
+  return normaliserRecherche(Array.from(valeur.trim()).slice(0, 150).join("").trimEnd());
+}
+
+/** Correspondance de la migration 1.9 : champ par champ, texte cherché tel quel. */
+function correspond(d: DemandeSimulee, q: string): boolean {
+  if (q === "") return true;
+  return [d.reference, d.nom, d.email, d.entreprise, d.objet].some(
+    (champ) => champ !== null && normaliserRecherche(champ).includes(q),
+  );
+}
 
 /**
  * `total` demandes fictives, la plus récente en premier : la dernière
@@ -86,6 +115,8 @@ export function fabriquerDemandes(total: number, nouvelles = 0): DemandeSimulee[
       reference: `NOVA-2026-${String(numero).padStart(4, "0")}`,
       date_depot: new Date(debut - index * 60 * 60 * 1000).toISOString().replace("Z", "+00:00"),
       nom: `Demandeur ${numero}`,
+      email: `demandeur${numero}@exemple.fr`,
+      entreprise: numero % 2 === 0 ? `Entreprise ${numero}` : null,
       objet: `Objet de la demande ${numero}`,
       categorie: "Problème technique",
       statut: index < nouvelles ? "nouvelle" : index % 2 === 0 ? "en_cours" : "traitee",
@@ -254,10 +285,12 @@ export function creerSimulationConnexion() {
       const entier = (valeur: unknown, defaut: number) =>
         typeof valeur === "number" && Number.isInteger(valeur) ? valeur : defaut;
       const taille = Math.min(Math.max(entier(parametres.p_taille, 25), 1), 100);
-      const total = demandes.length;
+      const q = nettoyerRecherche(parametres.p_q);
+      const trouvees = demandes.filter((d) => correspond(d, q));
+      const total = trouvees.length;
       const derniere = Math.max(1, Math.ceil(total / taille));
       const page = Math.min(Math.max(entier(parametres.p_page, 1), 1), derniere);
-      const triees = [...demandes].sort(
+      const triees = [...trouvees].sort(
         (a, b) =>
           Date.parse(b.date_depot) - Date.parse(a.date_depot) ||
           (a.reference < b.reference ? 1 : a.reference > b.reference ? -1 : 0),

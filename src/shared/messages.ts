@@ -189,7 +189,18 @@ export const MESSAGES_LISTE = {
   precedente: "Précédente",
   suivante: "Suivante",
   chargement: "Chargement…",
+  /** Barre de recherche (FR-12) : texte gris du champ et nom donné aux lecteurs d'écran. */
+  recherche: "Rechercher par référence, nom, email, entreprise ou objet",
+  /** Recherche sans résultat (texte exact de FR-12). */
+  rechercheVideTitre: "Aucune demande trouvée",
+  rechercheVideTexte: "Vérifiez l'orthographe ou retirez des filtres.",
+  reinitialiser: "Réinitialiser",
 } as const;
+
+/** Ligne de résultat au-dessus du tableau (FR-13) : « 1 demande », « 42 demandes ». */
+export function nombreDemandes(nombre: number): string {
+  return `${formaterNombre(nombre)} ${nombre > 1 ? "demandes" : "demande"}`;
+}
 
 /** « Demandes 1 à 25 sur 42 · Page 1 sur 2 » (DESIGN.md, Pagination). */
 export function resumePagination({

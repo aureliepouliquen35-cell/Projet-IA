@@ -29,7 +29,7 @@ import PageDemandes from "@/app/(interne)/demandes/page";
 import { BadgeStatut } from "@/components/interne/badge-statut";
 import { CarteATraiter } from "@/components/interne/carte-a-traiter";
 import { EtatListeErreur, SqueletteListe } from "@/components/interne/etat-liste";
-import { adressePage, Pagination } from "@/components/interne/pagination";
+import { Pagination } from "@/components/interne/pagination";
 import { STATUTS } from "@/shared/constantes";
 import { LIBELLES_STATUTS } from "@/shared/libelles";
 
@@ -97,10 +97,16 @@ describe("accueil : 5 Nouvelle sur 42", () => {
     expect(html).not.toMatch(/@|mailto:|tel:/);
   });
 
-  it("pas de lien vers le détail, de recherche, de filtre ni de « Nouvelle demande »", async () => {
+  it("pas de lien vers le détail, de filtre, de « Réinitialiser » ni de « Nouvelle demande »", async () => {
     const html = await ecran();
     expect(html).not.toMatch(/href="\/demandes\/NOVA/);
-    expect(texteDe(html)).not.toMatch(/Rechercher|Filtres|Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour/);
+    expect(texteDe(html)).not.toMatch(/Filtres|Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour/);
+  });
+
+  it("ligne de résultat « 42 demandes » au-dessus du tableau, annoncée par la zone toujours présente", async () => {
+    const html = await ecran();
+    expect(html).toMatch(/<p class="[^"]*"><strong[^>]*>42 demandes<\/strong><\/p><div[^>]*><table/);
+    expect(html).toContain('<p data-slot="annonce-resultats" role="status" class="sr-only">42 demandes</p>');
   });
 
   it("pagination : « Demandes 1 à 25 sur 42 · Page 1 sur 2 », « Précédente » grisé", async () => {
@@ -194,11 +200,6 @@ describe("composants", () => {
   it("carte : nombre écrit à la française, « — » si inconnu", () => {
     expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={1234} />))).toBe("1 234 à traiter Nouvelles");
     expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={null} />))).toBe("— à traiter Nouvelles");
-  });
-
-  it("adresses de la pagination : page 1 sans paramètre", () => {
-    expect(adressePage(1)).toBe("/demandes");
-    expect(adressePage(3)).toBe("/demandes?page=3");
   });
 
   it("pagination : la ligne de résumé", () => {

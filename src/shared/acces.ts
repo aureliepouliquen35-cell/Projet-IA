@@ -5,6 +5,12 @@
 /** Écran I1 : toute page interne ouverte sans session y renvoie (FR-10). */
 export const ADRESSE_CONNEXION = "/connexion";
 
+/**
+ * Écran I2 : imposé tant que le mot de passe temporaire n'a pas été remplacé
+ * (`profils.doit_changer_mdp`, FR-21).
+ */
+export const ADRESSE_NOUVEAU_MOT_DE_PASSE = "/connexion/nouveau-mot-de-passe";
+
 /** Page d'arrivée après la connexion : « Demandes » (I3). */
 export const ADRESSE_ACCUEIL_INTERNE = "/demandes";
 
@@ -16,20 +22,44 @@ export const ADRESSE_ACCUEIL_INTERNE = "/demandes";
 export const PREFIXES_INTERNES = ["/demandes", "/admin"] as const;
 
 /**
- * Vrai si l'adresse est celle d'une page interne : un des préfixes, seul ou
- * suivi de `/…` (`/demandes`, `/demandes/NOVA-2026-0001`), jamais un simple
- * début de mot (`/demandesxyz`). Sans tenir compte des majuscules, ni des
- * caractères écrits en `%xx` (`/%64emandes`), ni d'une barre finale.
+ * Adresse lue sans tenir compte des majuscules, ni des caractères écrits en
+ * `%xx` (`/%64emandes`). Une adresse mal formée est lue telle quelle.
  */
-export function estPageInterne(chemin: string): boolean {
+function normaliser(chemin: string): string {
   let decode = chemin;
   try {
     decode = decodeURIComponent(chemin);
   } catch {
     // Adresse mal formée : lue telle quelle.
   }
-  const normalise = decode.toLowerCase();
-  return PREFIXES_INTERNES.some(
-    (prefixe) => normalise === prefixe || normalise.startsWith(`${prefixe}/`),
-  );
+  return decode.toLowerCase();
+}
+
+/** Vrai si `chemin` est `adresse`, seule ou suivie de `/…`. */
+const commencePar = (chemin: string, adresse: string) =>
+  chemin === adresse || chemin.startsWith(`${adresse}/`);
+
+/**
+ * Vrai si l'adresse est celle d'une page interne : un des préfixes, seul ou
+ * suivi de `/…` (`/demandes`, `/demandes/NOVA-2026-0001`), jamais un simple
+ * début de mot (`/demandesxyz`). Sans tenir compte des majuscules, ni des
+ * caractères écrits en `%xx` (`/%64emandes`), ni d'une barre finale.
+ */
+export function estPageInterne(chemin: string): boolean {
+  const normalise = normaliser(chemin);
+  return PREFIXES_INTERNES.some((prefixe) => commencePar(normalise, prefixe));
+}
+
+/** Vrai si l'adresse est celle de l'écran I2 (même lecture qu'`estPageInterne`). */
+export function estPageNouveauMotDePasse(chemin: string): boolean {
+  return commencePar(normaliser(chemin), ADRESSE_NOUVEAU_MOT_DE_PASSE);
+}
+
+/**
+ * Vrai si la page demande une session : les pages internes et l'écran I2.
+ * Le proxy y applique l'expiration, le renvoi vers I2 et l'interdiction de
+ * mise en cache.
+ */
+export function estPageProtegee(chemin: string): boolean {
+  return estPageInterne(chemin) || estPageNouveauMotDePasse(chemin);
 }

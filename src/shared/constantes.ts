@@ -27,6 +27,17 @@ export const LONGUEURS_MAXIMALES_PARAMETRES = {
 /** Longueur minimale d'un mot de passe, temporaire ou définitif (NFR-11). */
 export const LONGUEUR_MINIMALE_MOT_DE_PASSE = 12;
 
+/**
+ * Longueur maximale d'un mot de passe, en octets (UTF-8) : au-delà, Supabase
+ * Auth le refuse (limite de bcrypt). Une lettre accentuée compte pour 2.
+ */
+export const LONGUEUR_MAXIMALE_MOT_DE_PASSE_OCTETS = 72;
+
+/** Nombre d'octets d'un texte une fois écrit en UTF-8. */
+export function compterOctets(texte: string): number {
+  return new TextEncoder().encode(texte).length;
+}
+
 /** Rôles d'un compte interne (FR-21), comme dans la base (`profils.role`). */
 export const ROLES = ["collaborateur", "administrateur"] as const;
 export type Role = (typeof ROLES)[number];

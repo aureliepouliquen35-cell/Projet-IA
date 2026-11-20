@@ -5,20 +5,34 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { createClient } from "@/lib/supabase/server";
-import { ADRESSE_CONNEXION } from "@/shared/acces";
+import {
+  ADRESSE_ACCUEIL_INTERNE,
+  ADRESSE_CONNEXION,
+  ADRESSE_NOUVEAU_MOT_DE_PASSE,
+} from "@/shared/acces";
 import { ROLES, type Role } from "@/shared/constantes";
 
 // Garde d'accès de l'espace interne (AD-7). Chaque page interne et chaque
-// Server Function interne commence par `exigerUtilisateur()`.
+// Server Function interne commence par `exigerUtilisateur()` ; l'écran I2 et
+// sa Server Function, par `exigerChangementMotDePasse()`.
 //
-// La session vient des cookies (vérifiée par `getClaims`) ; le nom, le rôle
-// et l'état du compte sont **relus dans `profils`** à chaque requête, avec la
-// session de la personne (règle RLS « sa propre ligne »). Le rôle n'est
-// jamais lu dans les métadonnées du compte Supabase, que l'utilisateur peut
-// modifier lui-même.
+// La session vient des cookies (vérifiée par `getClaims`) ; le nom, le rôle,
+// l'état du compte et « doit changer son mot de passe » sont **relus dans
+// `profils`** à chaque requête, avec la session de la personne (règle RLS
+// « sa propre ligne »). Le rôle n'est jamais lu dans les métadonnées du
+// compte Supabase, que l'utilisateur peut modifier lui-même.
+//
+// Le proxy renvoie déjà vers I2 ou la connexion avant l'affichage ; la garde
+// reste la vraie protection (Server Functions, pages).
 
 /** Ce que l'espace interne sait de la personne connectée. */
-export type UtilisateurConnecte = { id: string; nom: string; role: Role };
+export type UtilisateurConnecte = {
+  id: string;
+  nom: string;
+  role: Role;
+  /** Vrai tant que le mot de passe temporaire n'a pas été remplacé (I2). */
+  doitChangerMdp: boolean;
+};
 
 /** Au-delà, on abandonne : la page ne reste pas bloquée. */
 const DELAI_MS = 8000;
@@ -48,7 +62,7 @@ export const lireUtilisateur = cache(async (): Promise<UtilisateurConnecte | nul
 
   const { data: profil, error } = await supabase
     .from("profils")
-    .select("id, nom, role, actif")
+    .select("id, nom, role, actif, doit_changer_mdp")
     .eq("id", id)
     .abortSignal(AbortSignal.timeout(DELAI_MS))
     .maybeSingle();
@@ -59,16 +73,34 @@ export const lireUtilisateur = cache(async (): Promise<UtilisateurConnecte | nul
   if (typeof profil.nom !== "string" || !estUnRole(profil.role)) {
     throw new Error("Le profil lu n'a pas de nom ou de rôle reconnu.");
   }
+  if (typeof profil.doit_changer_mdp !== "boolean") {
+    throw new Error("Le profil lu ne dit pas si le mot de passe doit être changé.");
+  }
 
-  return { id, nom: profil.nom, role: profil.role };
+  return { id, nom: profil.nom, role: profil.role, doitChangerMdp: profil.doit_changer_mdp };
 });
 
 /**
- * La personne connectée ; sinon, renvoi vers la connexion (I1). À appeler en
+ * La personne connectée ; sinon, renvoi vers la connexion (I1). Tant que son
+ * mot de passe temporaire n'est pas remplacé, renvoi vers I2. À appeler en
  * premier dans chaque page et chaque Server Function internes.
  */
 export async function exigerUtilisateur(): Promise<UtilisateurConnecte> {
   const utilisateur = await lireUtilisateur();
   if (!utilisateur) redirect(ADRESSE_CONNEXION);
+  if (utilisateur.doitChangerMdp) redirect(ADRESSE_NOUVEAU_MOT_DE_PASSE);
+  return utilisateur;
+}
+
+/**
+ * La personne connectée qui doit choisir son mot de passe (écran I2). Sans
+ * session : renvoi vers la connexion ; mot de passe déjà choisi : renvoi
+ * vers « Demandes ». À appeler en premier dans l'écran I2 et sa Server
+ * Function.
+ */
+export async function exigerChangementMotDePasse(): Promise<UtilisateurConnecte> {
+  const utilisateur = await lireUtilisateur();
+  if (!utilisateur) redirect(ADRESSE_CONNEXION);
+  if (!utilisateur.doitChangerMdp) redirect(ADRESSE_ACCUEIL_INTERNE);
   return utilisateur;
 }

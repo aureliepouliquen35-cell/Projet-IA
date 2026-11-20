@@ -1,23 +1,41 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Proxy (AD-7, FR-9, FR-10) : toute page interne sans session renvoie vers
-// la connexion ; les pages internes ne sont jamais gardées en cache ; les
-// pages publiques, la connexion et les adresses inconnues (`/inscription`,
-// RM-8) passent sans changement. Supabase est simulé.
+// Proxy (AD-7, FR-9, FR-10, FR-21) : toute page protégée (pages internes et
+// écran I2) sans session renvoie vers la connexion ; plus de 8 h sans
+// activité ferment la session (message « session expirée ») ; un mot de
+// passe temporaire à remplacer renvoie vers I2 ; le cookie d'activité est
+// renouvelé ; les pages protégées ne sont jamais gardées en cache ; les pages
+// publiques, la connexion et les adresses inconnues (`/inscription`, RM-8)
+// passent sans changement. Une Server Function n'est jamais renvoyée par
+// HTTP. Supabase est simulé.
 
 const simulation = vi.hoisted(() => ({
   /** Identifiant renvoyé par `getClaims` (null : pas de session). */
   sub: null as string | null,
   /** Cookies que le rafraîchissement de la session pose (setAll). */
   cookiesRafraichis: [] as { name: string; value: string; options: Record<string, unknown> }[],
+  /** Profil lu par le proxy (`doit_changer_mdp`), ou panne. */
+  profil: { doit_changer_mdp: false } as { doit_changer_mdp: unknown } | null,
+  erreurProfil: null as { code: string; message: string } | null,
+  /** Appels de `signOut`, et panne éventuelle. */
+  signOut: [] as unknown[],
+  signOutLeve: false,
+  lecturesProfil: 0,
 }));
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (
     _url: string,
     _cle: string,
-    { cookies }: { cookies: { setAll: (c: unknown[], h: Record<string, string>) => void } },
+    {
+      cookies,
+    }: {
+      cookies: {
+        getAll: () => { name: string; value: string }[];
+        setAll: (c: unknown[], h: Record<string, string>) => void;
+      };
+    },
   ) => ({
     auth: {
       getClaims: async () => {
@@ -28,50 +46,126 @@ vi.mock("@supabase/ssr", () => ({
           ? { data: { claims: { sub: simulation.sub } }, error: null }
           : { data: null, error: null };
       },
+      signOut: async (options: unknown) => {
+        simulation.signOut.push(options);
+        if (simulation.signOutLeve) throw new Error("fetch failed");
+        // Comme @supabase/ssr : les cookies de session sont effacés.
+        const aEffacer = cookies
+          .getAll()
+          .filter(({ name }) => name.startsWith("sb-"))
+          .map(({ name }) => ({ name, value: "", options: { path: "/", maxAge: 0 } }));
+        cookies.setAll(aEffacer, {});
+        return { error: null };
+      },
+    },
+    from: (table: string) => {
+      if (table !== "profils") throw new Error(`Table inattendue : ${table}`);
+      return {
+        select: () => ({
+          eq: () => ({
+            abortSignal: () => ({
+              maybeSingle: async () => {
+                simulation.lecturesProfil += 1;
+                return { data: simulation.erreurProfil ? null : simulation.profil, error: simulation.erreurProfil };
+              },
+            }),
+          }),
+        }),
+      };
     },
   }),
 }));
 
 import { proxy, config } from "@/proxy";
 import { CACHE_PAGES_INTERNES } from "@/lib/supabase/proxy";
+import { activiteValide, COOKIE_ACTIVITE, DUREE_INACTIVITE_MS, valeurActivite } from "@/server/garde/activite";
+import { COOKIE_MESSAGE_CONNEXION, dechiffrerPassage } from "@/server/passage";
 
-const requete = (chemin: string) => new NextRequest(new URL(chemin, "http://localhost:3000"));
+import { SECRET_COOKIES_ESSAI } from "../aides/supabase-connexion";
+
+const ID = "0b6c3f4e-9a1d-4c2b-8e7f-1a2b3c4d5e6f";
+const COOKIE_SESSION = "sb-essai-auth-token";
+
+function requete(
+  chemin: string,
+  { cookies = {}, action = false }: { cookies?: Record<string, string>; action?: boolean } = {},
+) {
+  const entetes = new Headers();
+  const liste = Object.entries(cookies).map(([nom, valeur]) => `${nom}=${valeur}`);
+  if (liste.length > 0) entetes.set("cookie", liste.join("; "));
+  if (action) entetes.set("next-action", "7f0e1d2c3b4a");
+  return new NextRequest(new URL(chemin, "http://localhost:3000"), {
+    method: action ? "POST" : "GET",
+    headers: entetes,
+  });
+}
+
+/** Requête d'une personne connectée, active dans les 8 h. */
+const requeteConnectee = (chemin: string, options: { action?: boolean; activite?: string } = {}) =>
+  requete(chemin, {
+    action: options.action,
+    cookies: {
+      [COOKIE_SESSION]: "jeton",
+      [COOKIE_ACTIVITE]: options.activite ?? valeurActivite(Date.now() - 60 * 1000),
+    },
+  });
 
 beforeEach(() => {
+  vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
   simulation.sub = null;
   simulation.cookiesRafraichis = [];
+  simulation.profil = { doit_changer_mdp: false };
+  simulation.erreurProfil = null;
+  simulation.signOut = [];
+  simulation.signOutLeve = false;
+  simulation.lecturesProfil = 0;
 });
 
-describe("page interne sans session", () => {
-  it.each(["/demandes", "/demandes/NOVA-2026-0001", "/admin/comptes", "/demandes?q=facturation"])(
-    "%s renvoie vers /connexion",
-    async (chemin) => {
-      const reponse = await proxy(requete(chemin));
-      expect(reponse.status).toBe(307);
-      expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
-    },
-  );
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
-  it("le renvoi n'est pas gardé en cache", async () => {
+describe("page protégée sans session", () => {
+  it.each([
+    "/demandes",
+    "/demandes/NOVA-2026-0001",
+    "/admin/comptes",
+    "/demandes?q=facturation",
+    "/connexion/nouveau-mot-de-passe",
+  ])("%s renvoie vers /connexion", async (chemin) => {
+    const reponse = await proxy(requete(chemin));
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+  });
+
+  it("le renvoi n'est pas gardé en cache, sans message « session expirée »", async () => {
     const reponse = await proxy(requete("/demandes"));
     expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
   });
 
   it("garde les cookies posés ou effacés par le rafraîchissement de la session", async () => {
-    simulation.cookiesRafraichis = [{ name: "sb-essai-auth-token", value: "", options: { maxAge: 0, path: "/" } }];
+    simulation.cookiesRafraichis = [{ name: COOKIE_SESSION, value: "", options: { maxAge: 0, path: "/" } }];
     const reponse = await proxy(requete("/demandes"));
     expect(reponse.status).toBe(307);
-    expect(reponse.cookies.get("sb-essai-auth-token")).toMatchObject({ value: "", maxAge: 0 });
+    expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+  });
+
+  it("Server Function : pas de renvoi HTTP, sa garde renverra vers /connexion", async () => {
+    const reponse = await proxy(requete("/demandes", { action: true }));
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("location")).toBeNull();
+    expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
   });
 });
 
-describe("page interne avec session", () => {
+describe("page interne avec session active", () => {
   beforeEach(() => {
-    simulation.sub = "0b6c3f4e-9a1d-4c2b-8e7f-1a2b3c4d5e6f";
+    simulation.sub = ID;
   });
 
   it("passe, sans mise en cache (no-store)", async () => {
-    const reponse = await proxy(requete("/demandes"));
+    const reponse = await proxy(requeteConnectee("/demandes"));
     expect(reponse.status).toBe(200);
     expect(reponse.headers.get("location")).toBeNull();
     expect(reponse.headers.get("x-middleware-next")).toBe("1");
@@ -81,22 +175,186 @@ describe("page interne avec session", () => {
   });
 
   it("garde les cookies rafraîchis", async () => {
-    simulation.cookiesRafraichis = [{ name: "sb-essai-auth-token", value: "nouveau", options: { path: "/" } }];
-    const reponse = await proxy(requete("/demandes"));
-    expect(reponse.cookies.get("sb-essai-auth-token")?.value).toBe("nouveau");
+    simulation.cookiesRafraichis = [{ name: COOKIE_SESSION, value: "nouveau", options: { path: "/" } }];
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.cookies.get(COOKIE_SESSION)?.value).toBe("nouveau");
     expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+  });
+
+  it("renouvelle le cookie d'activité (httpOnly, lax, path /, 8 h), même après un rafraîchissement", async () => {
+    simulation.cookiesRafraichis = [{ name: COOKIE_SESSION, value: "nouveau", options: { path: "/" } }];
+    const avant = Date.now();
+    const reponse = await proxy(requeteConnectee("/demandes", { activite: valeurActivite(avant - 7 * 60 * 60 * 1000) }));
+    const cookie = reponse.cookies.get(COOKIE_ACTIVITE);
+    expect(cookie).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/", maxAge: 8 * 60 * 60 });
+    const heure = Number(cookie!.value.split(".")[1]);
+    expect(heure).toBeGreaterThanOrEqual(avant);
+    expect(activiteValide(cookie!.value)).toBe(true);
+  });
+
+  it("Server Function : renouvelle aussi l'activité, sans lire le profil", async () => {
+    const reponse = await proxy(requeteConnectee("/demandes", { action: true }));
+    expect(reponse.status).toBe(200);
+    expect(reponse.cookies.get(COOKIE_ACTIVITE)?.value).toBeTruthy();
+    expect(simulation.lecturesProfil).toBe(0);
+  });
+});
+
+describe("mot de passe temporaire à remplacer (I2)", () => {
+  beforeEach(() => {
+    simulation.sub = ID;
+  });
+
+  it.each(["/demandes", "/demandes/NOVA-2026-0001", "/admin/comptes"])(
+    "drapeau vrai : %s renvoie vers I2, cookies gardés",
+    async (chemin) => {
+      simulation.profil = { doit_changer_mdp: true };
+      simulation.cookiesRafraichis = [{ name: COOKIE_SESSION, value: "nouveau", options: { path: "/" } }];
+      const reponse = await proxy(requeteConnectee(chemin));
+      expect(reponse.status).toBe(307);
+      expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion/nouveau-mot-de-passe");
+      expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+      expect(reponse.cookies.get(COOKIE_SESSION)?.value).toBe("nouveau");
+      expect(reponse.cookies.get(COOKIE_ACTIVITE)?.value).toBeTruthy();
+    },
+  );
+
+  it("drapeau vrai : I2 s'affiche, sans mise en cache", async () => {
+    simulation.profil = { doit_changer_mdp: true };
+    const reponse = await proxy(requeteConnectee("/connexion/nouveau-mot-de-passe"));
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("location")).toBeNull();
+    expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+  });
+
+  it("drapeau faux : I2 renvoie vers /demandes", async () => {
+    const reponse = await proxy(requeteConnectee("/connexion/nouveau-mot-de-passe"));
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/demandes");
+  });
+
+  it.each([
+    ["profil illisible", () => {
+      simulation.erreurProfil = { code: "PGRST000", message: "panne" };
+    }],
+    ["profil absent", () => {
+      simulation.profil = null;
+    }],
+    ["valeur inattendue", () => {
+      simulation.profil = { doit_changer_mdp: null };
+    }],
+  ])("%s : la requête passe, la garde décidera", async (_, preparer) => {
+    preparer();
+    for (const chemin of ["/demandes", "/connexion/nouveau-mot-de-passe"]) {
+      const reponse = await proxy(requeteConnectee(chemin));
+      expect(reponse.status, chemin).toBe(200);
+    }
+  });
+
+  it("Server Function avec le drapeau vrai : pas de renvoi HTTP (la garde s'en charge)", async () => {
+    simulation.profil = { doit_changer_mdp: true };
+    const reponse = await proxy(requeteConnectee("/demandes", { action: true }));
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("location")).toBeNull();
+  });
+});
+
+describe("plus de 8 h sans activité", () => {
+  beforeEach(() => {
+    simulation.sub = ID;
+  });
+
+  const cas: [string, () => string | undefined][] = [
+    ["dernière activité il y a plus de 8 h", () => valeurActivite(Date.now() - DUREE_INACTIVITE_MS - 1000)],
+    ["cookie d'activité absent", () => undefined],
+    ["cookie d'activité falsifié", () => valeurActivite().replace(/\.(\d+)\./, (_, heure) => `.${Number(heure) + 1}.`)],
+    ["cookie d'activité daté du futur", () => valeurActivite(Date.now() + 60 * 60 * 1000)],
+  ];
+
+  it.each(cas)("%s : session fermée, /connexion avec le message", async (_, activite) => {
+    const valeur = activite();
+    const reponse = await proxy(
+      requete("/demandes", {
+        cookies: { [COOKIE_SESSION]: "jeton", ...(valeur ? { [COOKIE_ACTIVITE]: valeur } : {}) },
+      }),
+    );
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+    expect(simulation.signOut).toEqual([{ scope: "local" }]);
+    expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+    expect(reponse.cookies.get(COOKIE_ACTIVITE)).toMatchObject({ value: "", maxAge: 0 });
+
+    const message = reponse.cookies.get(COOKIE_MESSAGE_CONNEXION);
+    expect(message).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/connexion", maxAge: 30 * 60 });
+    expect(dechiffrerPassage(COOKIE_MESSAGE_CONNEXION, message!.value)).toEqual({
+      type: "message_connexion",
+      message: "session_expiree",
+    });
+    expect(simulation.lecturesProfil).toBe(0);
+  });
+
+  it("le message n'est jamais dans l'adresse", async () => {
+    const reponse = await proxy(requete("/demandes", { cookies: { [COOKIE_SESSION]: "jeton" } }));
+    expect(reponse.headers.get("location")).not.toMatch(/\?|session|expir/);
+  });
+
+  it("I2 aussi : session fermée", async () => {
+    simulation.profil = { doit_changer_mdp: true };
+    const reponse = await proxy(requete("/connexion/nouveau-mot-de-passe", { cookies: { [COOKIE_SESSION]: "jeton" } }));
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(simulation.signOut).toHaveLength(1);
+  });
+
+  it("Auth injoignable à la fermeture : cookies de session effacés quand même", async () => {
+    simulation.signOutLeve = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const reponse = await proxy(requete("/demandes", { cookies: { [COOKIE_SESSION]: "jeton" } }));
+    expect(reponse.status).toBe(307);
+    expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it.each([
+    ["Auth répond", false],
+    ["Auth injoignable", true],
+  ])("Server Function (%s) : session fermée, pas de renvoi HTTP, la suite ne voit plus de session", async (_, leve) => {
+    simulation.signOutLeve = leve;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const reponse = await proxy(
+      requete("/demandes", { action: true, cookies: { [COOKIE_SESSION]: "jeton", nova_autre: "1" } }),
+    );
+    vi.mocked(console.error).mockRestore();
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("location")).toBeNull();
+    expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)?.value).toBeTruthy();
+    // Cookies transmis à la Server Function (en-têtes « x-middleware-request-* »).
+    const transmis = reponse.headers.get("x-middleware-request-cookie");
+    expect(transmis).toContain("nova_autre=1");
+    expect(transmis).not.toContain(`${COOKIE_SESSION}=jeton`);
+  });
+
+  it("dans les 8 h : rien n'est fermé", async () => {
+    const reponse = await proxy(requeteConnectee("/demandes", { activite: valeurActivite(Date.now() - DUREE_INACTIVITE_MS + 60 * 1000) }));
+    expect(reponse.status).toBe(200);
+    expect(simulation.signOut).toEqual([]);
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
   });
 });
 
 describe("pages publiques et adresses inconnues : inchangées", () => {
-  it.each(["/", "/confirmation", "/connexion", "/inscription", "/demandesxyz", "/essais"])(
-    "%s passe sans renvoi ni en-tête de cache",
+  it.each(["/", "/confirmation", "/connexion", "/inscription", "/demandesxyz", "/essais", "/connexion/autre"])(
+    "%s passe sans renvoi ni en-tête de cache, même connecté sans activité",
     async (chemin) => {
-      const reponse = await proxy(requete(chemin));
+      simulation.sub = ID;
+      const reponse = await proxy(requete(chemin, { cookies: { [COOKIE_SESSION]: "jeton" } }));
       expect(reponse.status).toBe(200);
       expect(reponse.headers.get("location")).toBeNull();
       expect(reponse.headers.get("x-middleware-next")).toBe("1");
       expect(reponse.headers.get("cache-control")).toBeNull();
+      expect(simulation.signOut).toEqual([]);
+      expect(reponse.cookies.get(COOKIE_ACTIVITE)).toBeUndefined();
     },
   );
 });

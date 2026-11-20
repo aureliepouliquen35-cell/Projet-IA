@@ -5,6 +5,7 @@
 import {
   formaterNombre,
   LONGUEUR_MINIMALE_DESCRIPTION,
+  LONGUEUR_MAXIMALE_MOT_DE_PASSE_OCTETS,
   LONGUEUR_MINIMALE_MOT_DE_PASSE,
   LONGUEURS_MAXIMALES,
   LONGUEURS_MAXIMALES_PARAMETRES,
@@ -154,3 +155,31 @@ export const MESSAGES_INTERNE = {
   seDeconnecter: "Se déconnecter",
   deconnexionEnCours: "Déconnexion…",
 } as const;
+
+/**
+ * Choix du mot de passe I2 (EXPERIENCE.md, FR-21). Les trois messages
+ * d'erreur et le message de panne sont ceux de l'UX ; celui d'un mot de
+ * passe trop long (limite de Supabase Auth : 72 octets) suit la forme des
+ * autres.
+ */
+export const MESSAGES_MOT_DE_PASSE = {
+  titre: "Choisir un nouveau mot de passe",
+  texte: "Pour sécuriser votre compte, choisissez votre propre mot de passe.",
+  nouveauMotDePasse: "Nouveau mot de passe",
+  confirmer: "Confirmer",
+  /** Règle visible sous le premier champ. */
+  regle: `${LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères minimum`,
+  tropCourt: `${LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères minimum`,
+  tropLong: `Le mot de passe ne doit pas dépasser ${LONGUEUR_MAXIMALE_MOT_DE_PASSE_OCTETS} caractères (moins s'il contient des accents)`,
+  nonIdentiques: "Les deux mots de passe ne sont pas identiques",
+  identiqueAuTemporaire: "Choisissez un mot de passe différent du mot de passe temporaire",
+  enregistrer: "Enregistrer et continuer",
+  enregistrementEnCours: "Enregistrement…",
+  /** Erreur technique : rien n'a changé. */
+  enregistrementImpossible: "Votre mot de passe n'a pas pu être enregistré. Réessayez.",
+  /** Toast affiché à l'arrivée sur « Demandes ». */
+  enregistre: "Mot de passe enregistré",
+} as const;
+
+/** Encadré d'information de la connexion I1 après 8 h d'inactivité (FR-9). */
+export const MESSAGE_SESSION_EXPIREE = "Votre session a expiré. Reconnectez-vous pour continuer.";

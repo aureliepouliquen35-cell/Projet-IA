@@ -10,6 +10,7 @@ const simulation = await vi.hoisted(async () =>
 
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
+vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
 import { exigerUtilisateur, lireUtilisateur } from "@/server/garde";
 
@@ -35,9 +36,10 @@ describe("lireUtilisateur", () => {
       id: ID_KARIM,
       nom: "Karim Benali",
       role: "collaborateur",
+      doitChangerMdp: false,
     });
     expect(simulation.from).toHaveBeenCalledWith("profils");
-    expect(simulation.lectureProfils).toHaveBeenCalledWith("id, nom, role, actif", ID_KARIM);
+    expect(simulation.lectureProfils).toHaveBeenCalledWith("id, nom, role, actif, doit_changer_mdp", ID_KARIM);
   });
 
   it("le rôle vient de profils, jamais de la session", async () => {

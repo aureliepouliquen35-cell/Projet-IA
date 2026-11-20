@@ -14,6 +14,7 @@ const simulation = await vi.hoisted(async () =>
 
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
+vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
 import { ContenuDemandes } from "@/app/(interne)/demandes/contenu-demandes";
 import { actionSeConnecter } from "@/server/actions/se-connecter";

@@ -8,13 +8,21 @@ import { vi } from "vitest";
 //   migration (≥ 5 échecs de moins de 15 minutes, postérieurs à la dernière
 //   réussite), avec une horloge réglable (`avancer`).
 // - Client de session (`@/lib/supabase/server`) : `signInWithPassword`,
-//   `signOut`, `getClaims` et la lecture de `profils`.
+//   `signOut`, `getClaims`, `updateUser` et la lecture de `profils`.
+// - Mot de passe temporaire (story 1.7) : `est_mot_de_passe_temporaire` et
+//   `terminer_changement_mdp` appliquent les règles de la migration
+//   (NV105, NV106, sans effet si le drapeau est déjà faux) sur une copie en
+//   mémoire des empreintes (`temporaires` : identifiant → mot de passe).
+// - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
+//   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
+//   chaque `reinitialiser`.
 //
 // Utilisation, dans un test :
 //   const simulation = await vi.hoisted(async () =>
 //     (await import("../aides/supabase-connexion")).creerSimulationConnexion());
 //   vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 //   vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
+//   vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
 export type ErreurSimulee = { code?: string; message: string; status?: number } | null;
 export type RetourRpc = { data: unknown; error: ErreurSimulee };
@@ -23,13 +31,23 @@ export const ID_KARIM = "0b6c3f4e-9a1d-4c2b-8e7f-1a2b3c4d5e6f";
 export const EMAIL_KARIM = "karim.benali@nova-services.example";
 export const MOT_DE_PASSE_KARIM = "Un mot de passe sûr 2026";
 
-export type ProfilSimule = { id: string; nom: string; role: string; actif: boolean };
+export type ProfilSimule = {
+  id: string;
+  nom: string;
+  role: string;
+  actif: boolean;
+  doit_changer_mdp: boolean;
+};
+
+/** Secret des cookies signés, pour les tests. */
+export const SECRET_COOKIES_ESSAI = "secret-d-essai-des-cookies-de-passage-0123456789";
 
 export const PROFIL_KARIM: ProfilSimule = {
   id: ID_KARIM,
   nom: "Karim Benali",
   role: "collaborateur",
   actif: true,
+  doit_changer_mdp: false,
 };
 
 type Tentative = { email: string; date: number; reussite: boolean };
@@ -48,6 +66,11 @@ export function creerSimulationConnexion() {
   const session: { id: string | null } = { id: null };
   /** Remplace une fonction SQL par une panne, par nom. */
   const pannesRpc: Record<string, RetourRpc> = {};
+  /** Mots de passe temporaires encore enregistrés : identifiant → mot de passe. */
+  const temporaires = new Map<string, string>();
+  /** Cookies reçus du navigateur et cookies posés par le serveur. */
+  const cookiesRecus = new Map<string, string>();
+  const cookiesPoses = new Map<string, { valeur: string; options: Record<string, unknown> }>();
 
   function bloquee(email: string): boolean {
     const derniereReussite = Math.max(
@@ -81,6 +104,23 @@ export function creerSimulationConnexion() {
           reussite: parametres.p_reussite === true,
         });
       }
+      if (nom === "est_mot_de_passe_temporaire") {
+        return { data: temporaires.get(String(parametres.p_id)) === parametres.p_mdp, error: null };
+      }
+      if (nom === "terminer_changement_mdp") {
+        const id = String(parametres.p_id);
+        const motDePasse = String(parametres.p_mdp ?? "");
+        const profil = profils.get(id);
+        if (!profil || profil.doit_changer_mdp !== true) return { data: null, error: null };
+        if (Array.from(motDePasse).length < 12) {
+          return { data: null, error: { code: "NV105", message: "trop court" } };
+        }
+        if (temporaires.get(id) === motDePasse) {
+          return { data: null, error: { code: "NV106", message: "temporaire" } };
+        }
+        profil.doit_changer_mdp = false;
+        temporaires.delete(id);
+      }
       return { data: null, error: null };
     },
   }));
@@ -103,6 +143,18 @@ export function creerSimulationConnexion() {
     void options;
     session.id = null;
     return { error: null as ErreurSimulee };
+  });
+  /** Changement du mot de passe du compte de la session (`same_password` s'il est identique). */
+  const updateUser = vi.fn(async ({ password }: { password: string }) => {
+    const compte = [...comptes.values()].find((c) => c.id === session.id);
+    if (!compte) {
+      return { data: { user: null }, error: { code: "session_not_found", message: "no session", status: 403 } as ErreurSimulee };
+    }
+    if (compte.motDePasse === password) {
+      return { data: { user: null }, error: { code: "same_password", message: "same password", status: 422 } as ErreurSimulee };
+    }
+    compte.motDePasse = password;
+    return { data: { user: { id: compte.id } }, error: null as ErreurSimulee };
   });
   const getClaims = vi.fn(async () =>
     session.id
@@ -133,8 +185,15 @@ export function creerSimulationConnexion() {
     };
   });
   const createClient = vi.fn(async () => ({
-    auth: { signInWithPassword, signOut, getClaims },
+    auth: { signInWithPassword, signOut, getClaims, updateUser },
     from,
+  }));
+
+  const cookies = vi.fn(async () => ({
+    get: (nom: string) => (cookiesRecus.has(nom) ? { name: nom, value: cookiesRecus.get(nom)! } : undefined),
+    set: (nom: string, valeur: string, options: Record<string, unknown> = {}) => {
+      cookiesPoses.set(nom, { valeur, options });
+    },
   }));
 
   /** Remet la simulation à zéro, avec le compte actif de Karim. */
@@ -145,6 +204,10 @@ export function creerSimulationConnexion() {
     profils.clear();
     session.id = null;
     for (const nom of Object.keys(pannesRpc)) delete pannesRpc[nom];
+    temporaires.clear();
+    cookiesRecus.clear();
+    cookiesPoses.clear();
+    vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
     comptes.set(EMAIL_KARIM, { motDePasse: MOT_DE_PASSE_KARIM, id: ID_KARIM });
     profils.set(ID_KARIM, { ...PROFIL_KARIM });
     vi.clearAllMocks();
@@ -177,6 +240,11 @@ export function creerSimulationConnexion() {
     signInWithPassword,
     signOut,
     getClaims,
+    updateUser,
+    cookies,
+    cookiesRecus,
+    cookiesPoses,
+    temporaires,
     from,
     lectureProfils,
     tentatives,

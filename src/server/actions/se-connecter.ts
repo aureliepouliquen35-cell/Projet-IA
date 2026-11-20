@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 
 import { executerAction } from "@/server/actions/enveloppe";
 import { connecter } from "@/server/connexion";
-import { ADRESSE_ACCUEIL_INTERNE } from "@/shared/acces";
+import { oublierMessageConnexion } from "@/server/passage";
+import { ADRESSE_ACCUEIL_INTERNE, ADRESSE_NOUVEAU_MOT_DE_PASSE } from "@/shared/acces";
 import { MESSAGES_CONNEXION, resumeErreurs } from "@/shared/messages";
 import { echec, type Reponse } from "@/shared/reponse";
 import { validerConnexion } from "@/shared/schemas/connexion";
@@ -22,7 +23,9 @@ import { validerConnexion } from "@/shared/schemas/connexion";
  *   inactif) : `VALIDATION` sans champ, « Identifiants incorrects ».
  * - Blocage (5 échecs récents) : `TROP_DE_TENTATIVES`, « Trop de
  *   tentatives, réessayez plus tard ».
- * - Réussite : session ouverte, puis passage à « Demandes » (`redirect`).
+ * - Réussite : session ouverte, message « session expirée » effacé, puis
+ *   passage à « Demandes », ou à I2 si le mot de passe temporaire doit être
+ *   remplacé (`redirect`). Jamais de retour à la page demandée avant.
  * - Panne : `ERREUR_INTERNE`, journalisée par l'enveloppe (AD-12).
  */
 export async function actionSeConnecter(saisie: unknown): Promise<Reponse<null>> {
@@ -43,7 +46,10 @@ export async function actionSeConnecter(saisie: unknown): Promise<Reponse<null>>
       return echec("VALIDATION", MESSAGES_CONNEXION.identifiantsIncorrects);
     }
 
+    await oublierMessageConnexion();
     // Lève l'interruption de Next.js : l'enveloppe la relance.
-    redirect(ADRESSE_ACCUEIL_INTERNE);
+    redirect(
+      resultat === "mot_de_passe_a_changer" ? ADRESSE_NOUVEAU_MOT_DE_PASSE : ADRESSE_ACCUEIL_INTERNE,
+    );
   }, "se_connecter");
 }

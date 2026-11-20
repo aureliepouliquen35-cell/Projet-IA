@@ -1,6 +1,9 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
 import { createClient } from "@/lib/supabase/server";
+import { poserActivite } from "@/server/garde/activite";
 import { journaliser } from "@/server/journal";
 import { creerClientSecret } from "@/server/supabase-secret";
 
@@ -15,15 +18,22 @@ import { creerClientSecret } from "@/server/supabase-secret";
 // - Le profil est relu dans `profils` avec cette session (règle « sa propre
 //   ligne ») : un compte sans profil ou inactif voit sa session refermée
 //   aussitôt, et l'essai compte comme un échec (RM-10).
+// - À la réussite, le cookie de dernière activité est posé (expiration après
+//   8 h d'inactivité, `src/server/garde/activite.ts`).
 //
-// Les seules réponses sont « réussie », « refusée » et « bloquée » : un
-// email inconnu, un mauvais mot de passe et un compte inactif donnent la même
-// (AD-8). Jamais de mot de passe dans le journal ni dans une erreur.
+// Les seules réponses sont « réussie » (ou « mot de passe à changer »),
+// « refusée » et « bloquée » : un email inconnu, un mauvais mot de passe et un
+// compte inactif donnent la même (AD-8). Jamais de mot de passe dans le
+// journal ni dans une erreur.
+//
+// Le choix du mot de passe définitif (écran I2, `choisirMotDePasse`) est
+// aussi ici : il compare le mot de passe proposé au temporaire avec la clé
+// secrète (AD-6, AD-9).
 
 /** Au-delà, on abandonne : la page de connexion ne reste pas bloquée. */
 const DELAI_MS = 8000;
 
-export type ResultatConnexion = "reussie" | "refusee" | "bloquee";
+export type ResultatConnexion = "reussie" | "mot_de_passe_a_changer" | "refusee" | "bloquee";
 
 /**
  * Codes de Supabase Auth qui veulent dire « ces identifiants ne permettent
@@ -53,18 +63,26 @@ async function enregistrerTentative(email: string, reussite: boolean): Promise<v
   }
 }
 
-/** Vrai si le profil de ce compte existe et est actif (lu avec sa session). */
-async function profilActif(supabase: ClientSession, id: string): Promise<boolean> {
+/**
+ * État du profil de ce compte (lu avec sa session) : `null` s'il n'existe pas
+ * ou est inactif ; sinon, s'il doit encore changer son mot de passe.
+ */
+async function lireProfilActif(
+  supabase: ClientSession,
+  id: string,
+): Promise<{ doitChangerMdp: boolean } | null> {
   const { data, error } = await supabase
     .from("profils")
-    .select("actif")
+    .select("actif, doit_changer_mdp")
     .eq("id", id)
     .abortSignal(AbortSignal.timeout(DELAI_MS))
     .maybeSingle();
   if (error) {
     throw new Error(`Lecture du profil impossible (code ${error.code || "inconnu"}).`);
   }
-  return data?.actif === true;
+  if (data?.actif !== true) return null;
+  // Valeur inattendue : le changement est imposé (la garde relira le profil).
+  return { doitChangerMdp: data.doit_changer_mdp !== false };
 }
 
 /**
@@ -95,8 +113,10 @@ async function fermerSession(supabase: ClientSession): Promise<void> {
  * - `refusee` : email inconnu, mauvais mot de passe, compte inactif ou sans
  *   profil ; échec enregistré, `connexion_echouee` au journal, aucune
  *   session ouverte.
- * - `reussie` : session ouverte (cookies), réussite enregistrée,
- *   `connexion_reussie` au journal.
+ * - `reussie` : session ouverte (cookies), réussite enregistrée, cookie
+ *   d'activité posé, `connexion_reussie` au journal ;
+ * - `mot_de_passe_a_changer` : comme `reussie`, pour un compte qui doit
+ *   encore remplacer son mot de passe temporaire (écran I2).
  *
  * Toute autre erreur (base ou Auth injoignable…) est levée : l'enveloppe des
  * actions la journalise et répond `ERREUR_INTERNE`. Si elle survient après
@@ -123,8 +143,10 @@ export async function connecter(email: string, motDePasse: string): Promise<Resu
   }
 
   const id = data.user.id;
+  let doitChangerMdp: boolean;
   try {
-    if (!(await profilActif(supabase, id))) {
+    const profil = await lireProfilActif(supabase, id);
+    if (!profil) {
       await fermerSession(supabase);
       await enregistrerTentative(email, false);
       await journaliser("avertissement", "connexion_echouee", {
@@ -135,15 +157,18 @@ export async function connecter(email: string, motDePasse: string): Promise<Resu
       return "refusee";
     }
 
+    doitChangerMdp = profil.doitChangerMdp;
     await enregistrerTentative(email, true);
+    poserActivite(await cookies());
   } catch (erreur) {
-    // Pas de session ouverte sans réussite enregistrée ni profil vérifié.
+    // Pas de session ouverte sans réussite enregistrée, profil vérifié et
+    // cookie d'activité posé.
     await fermerSession(supabase);
     throw erreur;
   }
 
   await journaliser("info", "connexion_reussie", { email, compte_id: id });
-  return "reussie";
+  return doitChangerMdp ? "mot_de_passe_a_changer" : "reussie";
 }
 
 /**
@@ -152,4 +177,68 @@ export async function connecter(email: string, motDePasse: string): Promise<Resu
  */
 export async function deconnecter(): Promise<void> {
   await fermerSession(await createClient());
+}
+
+// ---------------------------------------------------------------------------
+// Choix du mot de passe définitif (écran I2, FR-21, AD-6)
+// ---------------------------------------------------------------------------
+
+export type ResultatChoixMotDePasse = "enregistre" | "temporaire";
+
+/** Vrai si c'est le mot de passe temporaire de ce compte (empreinte comparée par la base). */
+async function estMotDePasseTemporaire(id: string, motDePasse: string): Promise<boolean> {
+  const { data, error } = await creerClientSecret()
+    .rpc("est_mot_de_passe_temporaire", { p_id: id, p_mdp: motDePasse })
+    .abortSignal(AbortSignal.timeout(DELAI_MS));
+  if (error) {
+    throw new Error(
+      `La fonction est_mot_de_passe_temporaire a échoué (code ${error.code || "inconnu"}).`,
+    );
+  }
+  return data === true;
+}
+
+/**
+ * Remplace le mot de passe temporaire du compte connecté `id` (déjà vérifié
+ * par la garde) par `motDePasse` (déjà vérifié par le schéma : 12 caractères
+ * au moins, 72 octets au plus).
+ *
+ * 1. Le mot de passe temporaire est refusé (`temporaire`) : Supabase Auth
+ *    n'est pas appelé.
+ * 2. Le mot de passe est changé dans Supabase Auth, avec la session de la
+ *    personne. S'il y est déjà (`same_password` : envoi refait après une
+ *    panne de l'étape 3), le changement est considéré comme fait.
+ * 3. `terminer_changement_mdp` lève « doit changer son mot de passe » et
+ *    efface l'empreinte du temporaire (`enregistre`).
+ *
+ * Toute autre erreur (base ou Auth injoignable…) est levée : l'enveloppe des
+ * actions la journalise et répond `ERREUR_INTERNE`. Jamais de mot de passe
+ * dans le journal ni dans une erreur.
+ */
+export async function choisirMotDePasse(
+  id: string,
+  motDePasse: string,
+): Promise<ResultatChoixMotDePasse> {
+  if (await estMotDePasseTemporaire(id, motDePasse)) return "temporaire";
+
+  const supabase = await createClient();
+  const { error: erreurAuth } = await supabase.auth.updateUser({ password: motDePasse });
+  if (erreurAuth && erreurAuth.code !== "same_password") {
+    throw new Error(
+      `Supabase Auth a refusé le changement de mot de passe (code ${erreurAuth.code ?? String(erreurAuth.status ?? "inconnu")}).`,
+    );
+  }
+
+  const { error } = await creerClientSecret()
+    .rpc("terminer_changement_mdp", { p_id: id, p_mdp: motDePasse })
+    .abortSignal(AbortSignal.timeout(DELAI_MS));
+  if (error) {
+    // Mot de passe temporaire remis entre-temps (réinitialisation) : même
+    // réponse qu'à l'étape 1.
+    if (error.code === "NV106") return "temporaire";
+    throw new Error(
+      `La fonction terminer_changement_mdp a échoué (code ${error.code || "inconnu"}).`,
+    );
+  }
+  return "enregistre";
 }

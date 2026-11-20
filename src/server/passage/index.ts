@@ -173,3 +173,66 @@ export async function lireConfirmation(): Promise<Confirmation | null> {
   const { reference, objet, email } = lu.data;
   return { reference, objet, email };
 }
+
+// ---------------------------------------------------------------------------
+// Message de la connexion (I1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cookie du message affiché par la connexion I1 après un renvoi (« Votre
+ * session a expiré… »), lu seulement sous `/connexion`.
+ */
+export const COOKIE_MESSAGE_CONNEXION = "nova_message_connexion";
+const CHEMIN_CONNEXION = "/connexion";
+
+/** Messages possibles de la connexion. Le texte affiché est dans `src/shared/messages`. */
+export type MessageConnexion = "session_expiree";
+
+const schemaMessageConnexion = z.object({
+  type: z.literal("message_connexion"),
+  message: z.literal("session_expiree"),
+});
+
+/** Options du cookie de message de la connexion (30 minutes, sous `/connexion`). */
+export function optionsMessageConnexion() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV !== "development",
+    path: CHEMIN_CONNEXION,
+    maxAge: DUREE_PASSAGE_SECONDES,
+  };
+}
+
+/**
+ * Valeur du cookie « session expirée ». Le proxy la pose lui-même sur sa
+ * réponse (`cookies()` n'y est pas disponible), avec `optionsMessageConnexion`.
+ */
+export function valeurSessionExpiree(maintenant: number = Date.now()): string {
+  return chiffrerPassage(
+    COOKIE_MESSAGE_CONNEXION,
+    { type: "message_connexion", message: "session_expiree" },
+    maintenant,
+  );
+}
+
+/**
+ * Lit le message de la connexion. Renvoie `null` s'il est absent, modifié,
+ * expiré ou inconnu : la page n'affiche alors aucun encadré.
+ */
+export async function lireMessageConnexion(): Promise<MessageConnexion | null> {
+  const valeur = (await cookies()).get(COOKIE_MESSAGE_CONNEXION)?.value;
+  // Sans cookie, rien à déchiffrer : la page de connexion s'affiche même si
+  // le secret manque.
+  if (!valeur) return null;
+  const lu = schemaMessageConnexion.safeParse(dechiffrerPassage(COOKIE_MESSAGE_CONNEXION, valeur));
+  return lu.success ? lu.data.message : null;
+}
+
+/**
+ * Efface le message de la connexion (après une connexion réussie). À appeler
+ * depuis une Server Function.
+ */
+export async function oublierMessageConnexion(): Promise<void> {
+  (await cookies()).set(COOKIE_MESSAGE_CONNEXION, "", { ...optionsMessageConnexion(), maxAge: 0 });
+}

@@ -11,6 +11,7 @@ const simulation = await vi.hoisted(async () =>
 
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
+vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
 import { actionSeConnecter } from "@/server/actions/se-connecter";
 import { MESSAGE_ERREUR_INATTENDUE } from "@/shared/messages";
@@ -88,7 +89,7 @@ describe("bons identifiants (compte actif)", () => {
   it("relit le profil (actif) dans profils, avec la session ouverte", async () => {
     await connexionReussie({ email: EMAIL_KARIM, motDePasse: MOT_DE_PASSE_KARIM });
     expect(simulation.from).toHaveBeenCalledWith("profils");
-    expect(simulation.lectureProfils).toHaveBeenCalledWith("actif", ID_KARIM);
+    expect(simulation.lectureProfils).toHaveBeenCalledWith("actif, doit_changer_mdp", ID_KARIM);
   });
 });
 

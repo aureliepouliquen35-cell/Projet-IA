@@ -73,3 +73,10 @@ export const LIBELLES_ROLES: Record<Role, string> = {
   collaborateur: "Collaborateur",
   administrateur: "Administrateur",
 };
+
+/** Statuts d'une demande (FR-16), comme dans la base (`demandes.statut`). */
+export const STATUTS = ["nouvelle", "en_cours", "traitee"] as const;
+export type Statut = (typeof STATUTS)[number];
+
+/** Nombre de demandes par page de la liste (FR-11, convention « Adresse de la liste »). */
+export const TAILLE_PAGE = 25;

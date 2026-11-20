@@ -150,11 +150,63 @@ export const MESSAGES_CONNEXION = {
   motDePasseObligatoire: "Le mot de passe est obligatoire",
 } as const;
 
-/** Espace interne : en-tête et déconnexion (FR-9). */
+/** Espace interne : menu latéral et déconnexion (FR-9, NFR-4). */
 export const MESSAGES_INTERNE = {
   seDeconnecter: "Se déconnecter",
   deconnexionEnCours: "Déconnexion…",
+  menu: "Menu principal",
+  demandes: "Demandes",
+  /** Fin de la pastille, pour les lecteurs d'écran : « Demandes, 5 à traiter ». */
+  pastilleATraiter: "à traiter",
+  version: (version: string) => `Version v${version}`,
 } as const;
+
+/**
+ * Écran I3 « Demandes » (EXPERIENCE.md, FR-11, FR-14). Le sous-texte de la
+ * carte compteur deviendra « Nouvelles + urgentes non traitées » avec FR-19
+ * (décision d'Aurel, 20 nov. 2026).
+ */
+export const MESSAGES_LISTE = {
+  titre: "Demandes",
+  aTraiter: "à traiter",
+  sousTexteATraiter: "Nouvelles",
+  /** Le compteur n'a pas pu être lu : un tiret plutôt qu'un chiffre faux. */
+  compteurIndisponible: "—",
+  legendeTableau: "Demandes, des plus récentes aux plus anciennes",
+  colonnes: {
+    reference: "Référence",
+    deposeeLe: "Déposée le",
+    demandeur: "Demandeur",
+    objet: "Objet",
+    categorie: "Catégorie",
+    statut: "Statut",
+  },
+  videTitre: "Aucune demande pour le moment.",
+  videTexte: "Les demandes déposées sur le formulaire apparaîtront ici.",
+  erreur: "Impossible de charger les demandes.",
+  reessayer: "Réessayer",
+  pagination: "Pagination",
+  precedente: "Précédente",
+  suivante: "Suivante",
+  chargement: "Chargement…",
+} as const;
+
+/** « Demandes 1 à 25 sur 42 · Page 1 sur 2 » (DESIGN.md, Pagination). */
+export function resumePagination({
+  premiere,
+  derniere,
+  total,
+  page,
+  pages,
+}: {
+  premiere: number;
+  derniere: number;
+  total: number;
+  page: number;
+  pages: number;
+}): string {
+  return `Demandes ${formaterNombre(premiere)} à ${formaterNombre(derniere)} sur ${formaterNombre(total)} · Page ${formaterNombre(page)} sur ${formaterNombre(pages)}`;
+}
 
 /**
  * Choix du mot de passe I2 (EXPERIENCE.md, FR-21). Les trois messages

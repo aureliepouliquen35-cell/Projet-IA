@@ -68,3 +68,51 @@ describe("scripts/lancer.mjs", () => {
     expect(code).toBe(1);
   }, 60000);
 });
+
+describe("scripts/lancer.mjs — commande réservée au projet dev (story 1.8)", () => {
+  it("demandes:essai avec un autre fichier que .env.local : refus, rien n'est demandé (sortie 1)", () => {
+    const resultat = spawnSync(
+      process.execPath,
+      ["scripts/lancer.mjs", FICHIER_ENV, "scripts/essai/creer-demandes-essai.ts"],
+      {
+        cwd: racine,
+        input: "oui\n",
+        encoding: "utf8",
+        // Une valeur restée dans le terminal ne compte pas : le lanceur la remplace.
+        env: { ...process.env, NOVA_FICHIER_CLES: ".env.local" },
+        timeout: 60000,
+      },
+    );
+    const sortie = `${resultat.stdout}\n${resultat.stderr}`;
+    expect(sortie).toContain("ne s'exécute qu'avec les clés du projet dev (.env.local)");
+    expect(sortie).not.toContain("Projet Supabase visé");
+    expect(resultat.status).toBe(1);
+  }, 60000);
+});
+
+describe("scripts/lancer.mjs — NOVA_FICHIER_CLES", () => {
+  const COMMANDE = join("tests", "comptes", ".commande-essai-fichier-cles.ts");
+
+  beforeAll(() => {
+    writeFileSync(
+      join(racine, COMMANDE),
+      "export default async function () {\n  process.stdout.write(`NOVA_FICHIER_CLES=${process.env.NOVA_FICHIER_CLES}\n`);\n  return 0;\n}\n",
+    );
+  });
+
+  afterAll(() => {
+    rmSync(join(racine, COMMANDE), { force: true });
+  });
+
+  it("vaut le chemin du fichier des clés depuis la racine du dépôt, pas une valeur du terminal", () => {
+    const resultat = spawnSync(process.execPath, ["scripts/lancer.mjs", FICHIER_ENV, COMMANDE], {
+      cwd: racine,
+      input: "",
+      encoding: "utf8",
+      env: { ...process.env, NOVA_FICHIER_CLES: ".env.local" },
+      timeout: 60000,
+    });
+    expect(resultat.stdout).toContain(`NOVA_FICHIER_CLES=${FICHIER_ENV}\n`);
+    expect(resultat.status).toBe(0);
+  }, 60000);
+});

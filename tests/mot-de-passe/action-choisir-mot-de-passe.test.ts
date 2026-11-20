@@ -13,6 +13,8 @@ const simulation = await vi.hoisted(async () =>
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
+// `connection()` n'a de sens que pendant une vraie requête Next.js.
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 
 import { actionChoisirMotDePasse } from "@/server/actions/choisir-mot-de-passe";
 import { actionSeConnecter } from "@/server/actions/se-connecter";
@@ -109,7 +111,7 @@ describe("garde pendant le changement (AD-7)", () => {
   });
 
   it("/demandes : rien n'est affiché, renvoi vers I2", async () => {
-    expect(await leve(ContenuDemandes)).toMatchObject(renvoiVers("/connexion/nouveau-mot-de-passe"));
+    expect(await leve(() => ContenuDemandes({ searchParams: Promise.resolve({}) }))).toMatchObject(renvoiVers("/connexion/nouveau-mot-de-passe"));
   });
 
   it("exigerChangementMotDePasse : la personne", async () => {

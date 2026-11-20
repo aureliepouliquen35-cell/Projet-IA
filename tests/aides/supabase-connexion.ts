@@ -13,6 +13,12 @@ import { vi } from "vitest";
 //   `terminer_changement_mdp` appliquent les règles de la migration
 //   (NV105, NV106, sans effet si le drapeau est déjà faux) sur une copie en
 //   mémoire des empreintes (`temporaires` : identifiant → mot de passe).
+// - Liste des demandes (story 1.8) : `compter_a_traiter` et `lister_demandes`
+//   par le client de session (`rpc`), sur une copie en mémoire des demandes
+//   (`demandes`). Elles appliquent les règles de la migration : refus
+//   `NV201` sans profil actif au mot de passe choisi, « à traiter » =
+//   Nouvelle ou Urgente non Traitée, taille ramenée entre 1 et 100, page
+//   entre 1 et la dernière, tri date puis référence décroissantes.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -52,6 +58,46 @@ export const PROFIL_KARIM: ProfilSimule = {
 
 type Tentative = { email: string; date: number; reussite: boolean };
 
+/** Une demande, telle que la base la garde (colonnes lues par la liste). */
+export type DemandeSimulee = {
+  id: string;
+  reference: string;
+  /** ISO, comme `to_jsonb(timestamptz)`. */
+  date_depot: string;
+  nom: string;
+  objet: string;
+  categorie: string;
+  statut: "nouvelle" | "en_cours" | "traitee";
+  priorite: "normale" | "urgente";
+};
+
+/**
+ * `total` demandes fictives, la plus récente en premier : la dernière
+ * référence le 8 nov. 2026 à 8 h 47 (heure de Paris), puis une heure plus
+ * tôt pour chacune. Les `nouvelles` plus récentes sont *Nouvelle*, les
+ * suivantes *En cours* et *Traitée* en alternance.
+ */
+export function fabriquerDemandes(total: number, nouvelles = 0): DemandeSimulee[] {
+  const debut = Date.UTC(2026, 10, 8, 7, 47);
+  return Array.from({ length: total }, (_, index) => {
+    const numero = total - index;
+    return {
+      id: `00000000-0000-4000-8000-${String(numero).padStart(12, "0")}`,
+      reference: `NOVA-2026-${String(numero).padStart(4, "0")}`,
+      date_depot: new Date(debut - index * 60 * 60 * 1000).toISOString().replace("Z", "+00:00"),
+      nom: `Demandeur ${numero}`,
+      objet: `Objet de la demande ${numero}`,
+      categorie: "Problème technique",
+      statut: index < nouvelles ? "nouvelle" : index % 2 === 0 ? "en_cours" : "traitee",
+      priorite: "normale",
+    };
+  });
+}
+
+/** Définition « à traiter » de la migration (AD-5). */
+const aTraiter = (d: DemandeSimulee) =>
+  d.statut === "nouvelle" || (d.priorite === "urgente" && d.statut !== "traitee");
+
 const QUINZE_MINUTES = 15 * 60 * 1000;
 const VINGT_QUATRE_HEURES = 24 * 60 * 60 * 1000;
 
@@ -71,6 +117,8 @@ export function creerSimulationConnexion() {
   /** Cookies reçus du navigateur et cookies posés par le serveur. */
   const cookiesRecus = new Map<string, string>();
   const cookiesPoses = new Map<string, { valeur: string; options: Record<string, unknown> }>();
+  /** Demandes en base, lues par les fonctions de la liste. */
+  const demandes: DemandeSimulee[] = [];
 
   function bloquee(email: string): boolean {
     const derniereReussite = Math.max(
@@ -184,9 +232,55 @@ export function creerSimulationConnexion() {
       }),
     };
   });
+  /** Faux (refus NV201) sauf pour le profil actif, au mot de passe choisi, de la session. */
+  function utilisateurInterne(): boolean {
+    const profil = session.id ? profils.get(session.id) : undefined;
+    return profil?.actif === true && profil.doit_changer_mdp === false;
+  }
+
+  /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
+  const rpcSession = vi.fn((nom: string, parametres: Record<string, unknown> = {}) => ({
+    abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
+      void signal;
+      if (pannesRpc[nom]) return pannesRpc[nom];
+      if (nom !== "compter_a_traiter" && nom !== "lister_demandes") {
+        return { data: null, error: { code: "PGRST202", message: `fonction inconnue : ${nom}` } };
+      }
+      if (!utilisateurInterne()) {
+        return { data: null, error: { code: "NV201", message: "Accès refusé" } };
+      }
+      if (nom === "compter_a_traiter") return { data: demandes.filter(aTraiter).length, error: null };
+
+      const entier = (valeur: unknown, defaut: number) =>
+        typeof valeur === "number" && Number.isInteger(valeur) ? valeur : defaut;
+      const taille = Math.min(Math.max(entier(parametres.p_taille, 25), 1), 100);
+      const total = demandes.length;
+      const derniere = Math.max(1, Math.ceil(total / taille));
+      const page = Math.min(Math.max(entier(parametres.p_page, 1), 1), derniere);
+      const triees = [...demandes].sort(
+        (a, b) =>
+          Date.parse(b.date_depot) - Date.parse(a.date_depot) ||
+          (a.reference < b.reference ? 1 : a.reference > b.reference ? -1 : 0),
+      );
+      const lignes = triees
+        .slice((page - 1) * taille, page * taille)
+        .map(({ id, reference, date_depot, nom: nomDemandeur, objet, categorie, statut }) => ({
+          id,
+          reference,
+          date_depot,
+          nom: nomDemandeur,
+          objet,
+          categorie,
+          statut,
+        }));
+      return { data: { total, page, demandes: lignes }, error: null };
+    },
+  }));
+
   const createClient = vi.fn(async () => ({
     auth: { signInWithPassword, signOut, getClaims, updateUser },
     from,
+    rpc: rpcSession,
   }));
 
   const cookies = vi.fn(async () => ({
@@ -205,6 +299,7 @@ export function creerSimulationConnexion() {
     session.id = null;
     for (const nom of Object.keys(pannesRpc)) delete pannesRpc[nom];
     temporaires.clear();
+    demandes.length = 0;
     cookiesRecus.clear();
     cookiesPoses.clear();
     vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
@@ -235,6 +330,8 @@ export function creerSimulationConnexion() {
 
   return {
     rpc,
+    rpcSession,
+    demandes,
     creerClientSecret,
     createClient,
     signInWithPassword,

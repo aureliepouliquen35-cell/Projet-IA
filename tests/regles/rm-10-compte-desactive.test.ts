@@ -15,12 +15,17 @@ const simulation = await vi.hoisted(async () =>
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
+// `connection()` n'a de sens que pendant une vraie requête Next.js.
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 
 import { ContenuDemandes } from "@/app/(interne)/demandes/contenu-demandes";
 import { actionSeConnecter } from "@/server/actions/se-connecter";
 import { exigerUtilisateur, lireUtilisateur } from "@/server/garde";
 
 import { EMAIL_KARIM, ID_KARIM, MOT_DE_PASSE_KARIM } from "../aides/supabase-connexion";
+
+/** `/demandes` ouverte sans paramètre dans l'adresse. */
+const SANS_PARAMETRES = { searchParams: Promise.resolve({}) };
 
 beforeEach(() => {
   simulation.reinitialiser();
@@ -56,7 +61,7 @@ describe("RM-10 : un compte désactivé ne peut pas se connecter", () => {
     ["sans session", () => {}],
   ])("/demandes (%s) : rien n'est affiché, renvoi vers /connexion", async (_, preparer) => {
     preparer();
-    await expect(ContenuDemandes()).rejects.toMatchObject({
+    await expect(ContenuDemandes(SANS_PARAMETRES)).rejects.toMatchObject({
       digest: expect.stringMatching(/^NEXT_REDIRECT;\w+;\/connexion;/),
     });
   });
@@ -64,7 +69,7 @@ describe("RM-10 : un compte désactivé ne peut pas se connecter", () => {
   it("/demandes avec un compte actif : le contenu s'affiche", async () => {
     simulation.profils.get(ID_KARIM)!.actif = true;
     simulation.session.id = ID_KARIM;
-    await expect(ContenuDemandes()).resolves.toBeTruthy();
+    await expect(ContenuDemandes(SANS_PARAMETRES)).resolves.toBeTruthy();
   });
 
   it("réactivé, le même compte se connecte de nouveau", async () => {

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "secrets": "gitleaks git --redact --no-banner",
     "compte:creer": "node scripts/lancer.mjs .env.local scripts/installation/creer-compte.ts",
-    "parametres:installer": "node scripts/lancer.mjs .env.local scripts/installation/installer-parametres.ts"
+    "parametres:installer": "node scripts/lancer.mjs .env.local scripts/installation/installer-parametres.ts",
+    "demandes:essai": "node scripts/lancer.mjs .env.local scripts/essai/creer-demandes-essai.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

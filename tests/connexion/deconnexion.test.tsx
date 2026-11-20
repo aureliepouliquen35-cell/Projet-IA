@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Déconnexion (FR-9) et espace interne minimal (story 1.6) : la Server
+// Déconnexion (FR-9) et personne connectée (stories 1.6, 1.8) : la Server
 // Function ferme la session de ce navigateur, le bouton recharge entièrement
 // la page de connexion, la page `/demandes` vérifie elle-même la personne
 // connectée. Supabase est simulé.
@@ -13,6 +13,8 @@ const simulation = await vi.hoisted(async () =>
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
+// `connection()` n'a de sens que pendant une vraie requête Next.js.
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 
 import {
   BoutonDeconnexion,
@@ -115,7 +117,7 @@ describe("rechargement d'une page ressortie du cache du navigateur", () => {
   });
 });
 
-describe("en-tête : personne connectée", () => {
+describe("bas du menu latéral : personne connectée", () => {
   it.each([
     ["collaborateur", "Collaborateur"],
     ["administrateur", "Administrateur"],

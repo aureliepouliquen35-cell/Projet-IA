@@ -14,10 +14,13 @@
 //    remplacé par un module vide (scripts/installation/module-vide.ts).
 // 3. La commande exporte par défaut une fonction qui reçoit les options et
 //    renvoie le code de sortie (0 : réussite).
+//
+// Il sert aussi aux commandes d'essai du projet dev (`npm run demandes:essai`,
+// story 1.8), qui exigent `.env.local`.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
@@ -70,6 +73,12 @@ try {
 // Les valeurs du fichier remplacent celles du terminal : une variable restée
 // dans le terminal ne doit pas viser un autre projet que celui du fichier.
 Object.assign(process.env, parseEnv(readFileSync(cheminEnv, "utf8")));
+
+// Chemin du fichier des clés depuis la racine du dépôt (barres « / »), pour
+// les commandes réservées au projet dev
+// (`demandes:essai` n'accepte que `.env.local` à la racine). Toujours celui qui vient
+// d'être lu, jamais une valeur restée dans le terminal.
+process.env.NOVA_FICHIER_CLES = relative(racine, cheminEnv).split(sep).join("/");
 
 // --- Commande --------------------------------------------------------------
 

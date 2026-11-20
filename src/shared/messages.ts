@@ -5,7 +5,9 @@
 import {
   formaterNombre,
   LONGUEUR_MINIMALE_DESCRIPTION,
+  LONGUEUR_MINIMALE_MOT_DE_PASSE,
   LONGUEURS_MAXIMALES,
+  LONGUEURS_MAXIMALES_PARAMETRES,
 } from "@/shared/constantes";
 import type { ContactsNova } from "@/shared/contacts";
 
@@ -53,6 +55,41 @@ export const MESSAGES_DEPOT = {
   descriptionTropLongue: depasse("La description", LONGUEURS_MAXIMALES.description),
   caseObligatoire:
     "Cochez la case pour confirmer avoir lu l'usage de vos données",
+} as const;
+
+/**
+ * Création d'un compte (écran A1, procédure d'installation). Mêmes formes que
+ * le formulaire de dépôt pour le nom et l'email ; « 12 caractères minimum » et
+ * l'email déjà utilisé sont les textes d'A1.
+ */
+export const MESSAGES_COMPTE = {
+  nomObligatoire: "Le nom est obligatoire",
+  nomTropLong: depasse("Le nom", LONGUEURS_MAXIMALES.nom),
+  emailObligatoire: "L'email est obligatoire",
+  emailForme: "L'email doit avoir la forme nom@exemple.fr",
+  emailTropLong: depasse("L'email", LONGUEURS_MAXIMALES.email),
+  roleInconnu: "Le rôle doit être Collaborateur ou Administrateur",
+  motDePasseTropCourt: `${LONGUEUR_MINIMALE_MOT_DE_PASSE} caractères minimum`,
+  /** Sous le champ Email d'A1. */
+  emailDejaUtilise: "Cet email est déjà utilisé par un autre compte.",
+  /** Réponse `CONFLIT` (procédure d'installation). */
+  compteExistant: "Un compte existe déjà avec cet email.",
+  /** Réponse `ERREUR_INTERNE` : rien n'a été créé. */
+  creationImpossible: "Le compte n'a pas pu être créé. Réessayez.",
+} as const;
+
+/** Informations générales (écran A3, FR-31), textes de l'UX. */
+export const MESSAGES_PARAMETRES = {
+  champObligatoire: "Ce champ est obligatoire",
+  emailForme: "L'email doit avoir la forme nom@exemple.fr",
+  telephoneTropLong: depasse("Le téléphone", LONGUEURS_MAXIMALES_PARAMETRES.telephone),
+  emailContactTropLong: depasse("L'email", LONGUEURS_MAXIMALES_PARAMETRES.emailContact),
+  contactDonneesTropLong: depasse(
+    "Le contact pour les données personnelles",
+    LONGUEURS_MAXIMALES_PARAMETRES.contactDonnees,
+  ),
+  /** Erreur technique d'A3 : rien n'est modifié. */
+  enregistrementImpossible: "Les informations n'ont pas pu être enregistrées. Réessayez.",
 } as const;
 
 /**

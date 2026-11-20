@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "secrets": "gitleaks git --redact --no-banner"
+    "secrets": "gitleaks git --redact --no-banner",
+    "compte:creer": "node scripts/lancer.mjs .env.local scripts/installation/creer-compte.ts",
+    "parametres:installer": "node scripts/lancer.mjs .env.local scripts/installation/installer-parametres.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -32,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "jiti": "^2.7.0",
     "shadcn": "^4.23.0",
     "supabase": "^3.0.0",
     "tailwindcss": "^4",

@@ -28,3 +28,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-4-recevoir-confirmation-reference.md`
   summary: Exécuter réellement la `deposer_demande` à 9 paramètres dans les tests : second envoi du même numéro (une seule demande, aucun numéro de référence consommé, mêmes référence, objet et email), deux envois simultanés du même numéro (verrou), et choix par PostgREST de la bonne version de la fonction.
   evidence: Les tests de la story 1.4 lisent le texte SQL et simulent la base ; l'effet réel a été prouvé une fois à la main sur dev (bloc annulé, 30 vérifications). Rejoint les entrées des stories 1.1 et 1.3 sur une base de test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-creer-premier-compte-administrateur.md`
+  summary: Exécuter réellement `creer_profil` et `modifier_parametres` dans les tests : profil et empreinte `$2…` pour un compte Auth au bon email, refus NV101 (email différent), NV102, 23505 (email en double), mise à jour de l'unique ligne, NV103, NV104.
+  evidence: Les tests de la story 1.5 lisent le texte SQL et simulent la base (les codes d'erreur y sont écrits à la main) ; seule la vérification manuelle sur dev (docs/deploiement.md, étapes 4 et 5) prouve le comportement réel. Rejoint les entrées des stories 1.1, 1.3 et 1.4 sur une base de test.

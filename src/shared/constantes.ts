@@ -13,6 +13,24 @@ export const LONGUEURS_MAXIMALES = {
   description: 5000,
 } as const;
 
+/**
+ * Informations générales (FR-31, écran A3) : même limite que le téléphone et
+ * l'email d'une demande ; le contact pour les données personnelles peut être
+ * un email ou une courte adresse.
+ */
+export const LONGUEURS_MAXIMALES_PARAMETRES = {
+  telephone: 30,
+  emailContact: 100,
+  contactDonnees: 200,
+} as const;
+
+/** Longueur minimale d'un mot de passe, temporaire ou définitif (NFR-11). */
+export const LONGUEUR_MINIMALE_MOT_DE_PASSE = 12;
+
+/** Rôles d'un compte interne (FR-21), comme dans la base (`profils.role`). */
+export const ROLES = ["collaborateur", "administrateur"] as const;
+export type Role = (typeof ROLES)[number];
+
 /** Longueur minimale de la description, en caractères. */
 export const LONGUEUR_MINIMALE_DESCRIPTION = 10;
 

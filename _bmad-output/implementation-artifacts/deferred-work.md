@@ -56,8 +56,11 @@
   summary: Exécuter vraiment `lire_demande` sur une base Postgres de test (référence inconnue → `null`, minuscules, ordre des événements par date puis identifiant, refus `NV201`).
   evidence: Les tests 1.10 lisent le texte de la migration et une simulation JavaScript ; aucune base de test n'existe dans le dépôt (même constat qu'en 1.8 et 1.9). Retirer le `order by` du `jsonb_agg` ne ferait échouer qu'un test sur le texte SQL.
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-10-consulter-detail-historique-demande.md`
-  summary: Story 1.11 — élargir le schéma Zod de `lireDemande` (`TYPES_EVENEMENTS`, `AUTEURS_EVENEMENTS`) et les libellés avant que la base écrive des événements `statut` ou un auteur interne ; prévoir qu'une version 1.10 remise en service (retour arrière Vercel, AD-16) ne tombe pas en S3 sur ces demandes.
-  evidence: `schemaDetail` n'accepte que `type = creation` et `auteur = demandeur|systeme` ; tout autre événement en base fait lever la lecture, donc l'écran S3 sur le détail de la demande concernée.
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-consulter-detail-historique-demande.md`
   summary: Écran S3 dans l'espace interne : une panne sur une page interne remonte à `src/app/error.tsx`, qui remplace aussi le menu latéral et ne propose pas « Retour aux demandes » (EXPERIENCE.md, S3).
   evidence: `src/app/(interne)` n'a pas d'`error.tsx` ; le détail (1.10) est la première page interne qui lève une panne au lieu d'afficher un état d'erreur sur place. `src/components/ecran-erreur.tsx` note déjà « Liens vers les demandes (personne connectée) : à venir ».
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-faire-avancer-demande-nouvelle-traitee.md`
+  summary: Exécuter vraiment `changer_statut` et la nouvelle `lire_demande` sur une base Postgres de test (chaque ligne de la matrice, deux changements simultanés passés l'un après l'autre grâce au `for update`, contraintes `demandes_date_cloture_check` / `evenements_un_seul_auteur_check` / `evenements_statut_check`, nom d'un auteur désactivé).
+  evidence: Les tests 1.11 lisent le texte de la migration et une copie JavaScript des règles (`tests/aides/supabase-connexion.ts`) ; aucune base de test n'existe dans le dépôt (même constat qu'en 1.8 à 1.10). Une erreur de sens dans le SQL passerait les tests.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-faire-avancer-demande-nouvelle-traitee.md`
+  summary: Tester dans un vrai DOM le câblage des clics du panneau « Statut » (bouton → action, « Rouvrir la demande » de la fenêtre → action, « Annuler » → rien) et l'encadré « modifiée par … » qui reste affiché après `refresh()` (clé `demande.reference`).
+  evidence: Les tests du dépôt tournent en environnement `node` avec `renderToStaticMarkup`, sans bibliothèque DOM : les gestionnaires de clic et l'état React ne s'exécutent pas. Vérification manuelle à l'écran en attendant.

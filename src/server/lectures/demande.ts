@@ -39,13 +39,29 @@ import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
 //   noms de champs, aucune donnée du demandeur (AD-12, AD-13).
 // - Une seule lecture par requête (`cache` de React).
 
+/**
+ * Auteur d'un événement (FR-17) : un utilisateur interne, par son nom (même
+ * si son compte a été désactivé depuis), ou un libellé (« Demandeur »,
+ * « Système »).
+ */
+export type AuteurDemande = { interne: true; nom: string } | { interne: false; libelle: AuteurEvenement };
+
 /** Une ligne de l'historique (FR-17). */
-export type EvenementDemande = {
-  type: TypeEvenement;
-  auteur: AuteurEvenement;
-  /** Date de l'événement, au format ISO (UTC). */
-  date: string;
-};
+export type EvenementDemande =
+  | {
+      type: Exclude<TypeEvenement, "statut">;
+      auteur: AuteurDemande;
+      /** Date de l'événement, au format ISO (UTC). */
+      date: string;
+    }
+  | {
+      /** « Statut : ancien → nouveau » (FR-16). */
+      type: "statut";
+      auteur: AuteurDemande;
+      ancienStatut: Statut;
+      nouveauStatut: Statut;
+      date: string;
+    };
 
 /** Une demande, telle que l'écran I4 l'affiche. */
 export type DetailDemande = {
@@ -67,6 +83,8 @@ export type DetailDemande = {
   statut: Statut;
   /** Date de dépôt, au format ISO (UTC). */
   dateDepot: string;
+  /** Date du passage à *Traitée*, au format ISO (UTC) ; `null` si elle ne l'est pas. */
+  dateCloture: string | null;
   /** Du plus ancien au plus récent. */
   evenements: EvenementDemande[];
 };
@@ -86,16 +104,46 @@ const schemaDetail = z.object({
   canal: z.enum(CANAUX),
   statut: z.enum(STATUTS),
   date_depot: schemaDate,
+  date_cloture: schemaDate.nullable(),
   evenements: z.array(
-    z.object({
-      type: z.enum(TYPES_EVENEMENTS),
-      auteur: z.enum(AUTEURS_EVENEMENTS),
-      date: schemaDate,
-    }),
+    z
+      .object({
+        type: z.enum(TYPES_EVENEMENTS),
+        auteur: z.enum(AUTEURS_EVENEMENTS).nullable(),
+        auteur_nom: z.string().nullable(),
+        ancien_statut: z.enum(STATUTS).nullable(),
+        nouveau_statut: z.enum(STATUTS).nullable(),
+        date: schemaDate,
+      })
+      // Un seul auteur : un utilisateur interne ou un libellé (contrainte
+      // `evenements_un_seul_auteur_check`).
+      .refine((e) => (e.auteur === null) !== (e.auteur_nom === null), { path: ["auteur"] })
+      // Un changement de statut dit d'où et vers où il va ; les autres
+      // événements, non (contrainte `evenements_statut_check`).
+      .refine(
+        (e) =>
+          e.type === "statut"
+            ? e.ancien_statut !== null && e.nouveau_statut !== null
+            : e.ancien_statut === null && e.nouveau_statut === null,
+        { path: ["nouveau_statut"] },
+      ),
   ),
 });
 
+type EvenementLu = z.infer<typeof schemaDetail>["evenements"][number];
+
 const enIso = (texte: string) => new Date(texte).toISOString();
+
+function evenement(e: EvenementLu): EvenementDemande {
+  // Les deux `refine` du schéma garantissent les valeurs non nulles.
+  const auteur: AuteurDemande =
+    e.auteur_nom !== null ? { interne: true, nom: e.auteur_nom } : { interne: false, libelle: e.auteur! };
+  const date = enIso(e.date);
+  if (e.type === "statut") {
+    return { type: "statut", auteur, ancienStatut: e.ancien_statut!, nouveauStatut: e.nouveau_statut!, date };
+  }
+  return { type: e.type, auteur, date };
+}
 
 /**
  * Référence lue dans l'adresse (`/demandes/nova-2026-0042`) : en
@@ -149,6 +197,7 @@ export const lireDemande = cache(async (valeur: string): Promise<DetailDemande |
     canal: demande.canal,
     statut: demande.statut,
     dateDepot: enIso(demande.date_depot),
-    evenements: demande.evenements.map(({ type, auteur, date }) => ({ type, auteur, date: enIso(date) })),
+    dateCloture: demande.date_cloture === null ? null : enIso(demande.date_cloture),
+    evenements: demande.evenements.map(evenement),
   };
 });

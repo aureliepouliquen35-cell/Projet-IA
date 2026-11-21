@@ -78,7 +78,10 @@ describe("lireDemande", () => {
       canal: "formulaire",
       statut: "nouvelle",
       dateDepot: "2026-11-08T07:47:00.000Z",
-      evenements: [{ type: "creation", auteur: "demandeur", date: "2026-11-08T07:47:00.000Z" }],
+      dateCloture: null,
+      evenements: [
+        { type: "creation", auteur: { interne: false, libelle: "demandeur" }, date: "2026-11-08T07:47:00.000Z" },
+      ],
     });
     expect(simulation.rpcSession).toHaveBeenCalledWith("lire_demande", { p_reference: "NOVA-2026-0042" });
   });
@@ -110,9 +113,9 @@ describe("lireDemande", () => {
     };
     const demande = await lireDemande("NOVA-2026-0042");
     expect(demande?.evenements).toEqual([
-      { type: "creation", auteur: "demandeur", date: "2026-11-08T07:47:00.000Z" },
-      { type: "creation", auteur: "systeme", date: "2026-11-08T09:00:00.000Z" },
-      { type: "creation", auteur: "demandeur", date: "2026-11-08T09:00:00.000Z" },
+      { type: "creation", auteur: { interne: false, libelle: "demandeur" }, date: "2026-11-08T07:47:00.000Z" },
+      { type: "creation", auteur: { interne: false, libelle: "systeme" }, date: "2026-11-08T09:00:00.000Z" },
+      { type: "creation", auteur: { interne: false, libelle: "demandeur" }, date: "2026-11-08T09:00:00.000Z" },
     ]);
   });
 
@@ -150,17 +153,41 @@ describe("panne (AD-12, AD-13) : levée, sans donnée du demandeur", () => {
     return erreur as Error;
   }
 
+  /** Un événement complet de `lire_demande` (migration 1.11), à modifier. */
+  const evenement = (champs: Record<string, unknown>) => ({
+    type: "creation",
+    auteur: "demandeur",
+    auteur_nom: null,
+    ancien_statut: null,
+    nouveau_statut: null,
+    date: "2026-11-08T07:47:00Z",
+    ...champs,
+  });
+  const avecEvenement = (champs: Record<string, unknown>) => ({
+    data: { ...detailSimule(CLAIRE), evenements: [evenement(champs)] },
+    error: null,
+  });
+  const INATTENDUE = /^Réponse inattendue de lire_demande/;
+
   it.each([
-    ["refus de la base", { data: null, error: { code: "57P01", message: "connexion perdue : Claire Martin" } }],
-    ["refus NV201 (profil désactivé entre la garde et la lecture)", { data: null, error: { code: "NV201", message: "Accès refusé" } }],
-    ["réponse inattendue", { data: { ...detailSimule(CLAIRE), statut: "archivee" }, error: null }],
-    ["événement inconnu", { data: { ...detailSimule(CLAIRE), evenements: [{ type: "suppression", auteur: "demandeur", date: "2026-11-08T07:47:00Z" }] }, error: null }],
-    ["autre demande renvoyée", { data: { ...detailSimule(CLAIRE), reference: "NOVA-2026-0041" }, error: null }],
-  ])("%s : erreur levée, message sans donnée du demandeur", async (_, retour) => {
+    ["refus de la base", { data: null, error: { code: "57P01", message: "connexion perdue : Claire Martin" } }, /lire_demande/],
+    ["refus NV201 (profil désactivé entre la garde et la lecture)", { data: null, error: { code: "NV201", message: "Accès refusé" } }, /lire_demande/],
+    ["réponse inattendue", { data: { ...detailSimule(CLAIRE), statut: "archivee" }, error: null }, INATTENDUE],
+    ["événement inconnu", avecEvenement({ type: "suppression" }), INATTENDUE],
+    ["autre demande renvoyée", { data: { ...detailSimule(CLAIRE), reference: "NOVA-2026-0041" }, error: null }, INATTENDUE],
+    ["événement sans auteur", avecEvenement({ auteur: null, auteur_nom: null }), INATTENDUE],
+    ["événement à deux auteurs", avecEvenement({ auteur: "demandeur", auteur_nom: "Karim Benali" }), INATTENDUE],
+    [
+      "changement de statut sans ancien statut",
+      avecEvenement({ type: "statut", auteur: null, auteur_nom: "Karim Benali", ancien_statut: null, nouveau_statut: "en_cours" }),
+      INATTENDUE,
+    ],
+    ["création avec des statuts", avecEvenement({ ancien_statut: "nouvelle", nouveau_statut: "en_cours" }), INATTENDUE],
+  ])("%s : erreur levée, message sans donnée du demandeur", async (_, retour, message) => {
     simulation.pannesRpc.lire_demande = retour;
     const erreur = await erreurDe(lireDemande("NOVA-2026-0042"));
     for (const donnee of DONNEES) expect(erreur.message).not.toContain(donnee);
-    expect(erreur.message).toMatch(/lire_demande/);
+    expect(erreur.message).toMatch(message);
   });
 
   it("réponse inattendue : le message ne cite que les champs en cause", async () => {

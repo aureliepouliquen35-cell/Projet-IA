@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 
+import { ActionsStatut } from "@/components/interne/actions-statut";
 import { BadgeStatut } from "@/components/interne/badge-statut";
 import { FilAriane } from "@/components/interne/fil-ariane";
 import { HistoriqueDemande } from "@/components/interne/historique-demande";
@@ -13,7 +14,7 @@ import { adresseListe, lireRecherche } from "@/shared/adresse-liste";
 import { lienTelephone } from "@/shared/contacts";
 import { formaterDateHeure } from "@/shared/dates";
 import { LIBELLES_CANAUX } from "@/shared/libelles";
-import { MESSAGES_DETAIL } from "@/shared/messages";
+import { MESSAGES_DETAIL, MESSAGES_STATUT } from "@/shared/messages";
 
 import type { ParametresAdresse } from "../contenu-demandes";
 
@@ -26,12 +27,14 @@ import type { ParametresAdresse } from "../contenu-demandes";
 //   - à gauche, les blocs Demande (description en texte simple, retours à
 //     la ligne gardés : React l'échappe, jamais de HTML, NFR-11), Demandeur
 //     (email en `mailto:`, téléphone en `tel:`), Informations et Historique ;
-//   - à droite, le panneau « Statut » : le statut actuel seulement (les
-//     boutons arrivent avec la story 1.11).
+//   - à droite, le panneau « Statut » : le statut actuel et les boutons des
+//     seuls passages permis (`ActionsStatut`, story 1.11).
 // En dessous de 1 024 px, une colonne : le panneau vient sous l'en-tête.
+// La date de clôture s'affiche dans « Informations » si la demande est
+// *Traitée*.
 //
-// Ni priorité (FR-19), ni date de clôture, ni attribution, ni commentaires,
-// ni zone administrateur, ni « Voir ses autres demandes » : stories à venir.
+// Ni priorité (FR-19), ni attribution, ni commentaires, ni zone
+// administrateur, ni « Voir ses autres demandes » : stories à venir.
 
 const CARTE = "rounded-lg border bg-background p-6 shadow-soft";
 const LISTE_CHAMPS = "grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-body-sm";
@@ -139,6 +142,9 @@ export async function ContenuDemande({
           <p className="flex items-center gap-2 text-body-sm text-text">
             {MESSAGES_DETAIL.statutActuel} <BadgeStatut statut={demande.statut} />
           </p>
+          {/* Même clé après `refresh()` : l'encadré « modifiée par … » reste
+              affiché ; une autre demande repart de zéro. */}
+          <ActionsStatut key={demande.reference} reference={demande.reference} statut={demande.statut} />
         </aside>
 
         <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">
@@ -159,6 +165,11 @@ export async function ContenuDemande({
                 <Champ libelle={MESSAGES_DETAIL.deposeeLe}>
                   <time dateTime={demande.dateDepot}>{formaterDateHeure(new Date(demande.dateDepot))}</time>
                 </Champ>
+                {demande.dateCloture ? (
+                  <Champ libelle={MESSAGES_STATUT.clotureeLe}>
+                    <time dateTime={demande.dateCloture}>{formaterDateHeure(new Date(demande.dateCloture))}</time>
+                  </Champ>
+                ) : null}
               </dl>
             </Bloc>
           </div>

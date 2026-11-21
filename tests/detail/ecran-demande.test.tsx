@@ -167,12 +167,12 @@ describe("demande existante (NOVA-2026-0042)", () => {
     ]);
   });
 
-  it("panneau « Statut » : le statut actuel seulement, sans bouton", async () => {
+  it("panneau « Statut » : le statut actuel, puis les seuls passages permis (story 1.11)", async () => {
     const html = await ecran();
     const panneau = html.match(/<aside[^>]*data-slot="panneau-statut".*?<\/aside>/)?.[0] ?? "";
-    expect(texteDe(panneau)).toBe("Statut Actuel : Nouvelle");
+    expect(texteDe(panneau)).toBe("Statut Actuel : Nouvelle Passer En cours Marquer Traitée");
     expect(panneau).toContain('aria-labelledby="titre-panneau-statut"');
-    expect(html).not.toContain("<button");
+    expect(html.match(/<button/g)).toHaveLength(2);
   });
 
   it("deux colonnes à partir de 1 024 px ; une colonne en dessous, panneau sous l'en-tête", async () => {
@@ -182,9 +182,9 @@ describe("demande existante (NOVA-2026-0042)", () => {
     expect(html).toMatch(/data-slot="panneau-statut" class="[^"]*lg:col-start-2 lg:row-start-1/);
   });
 
-  it("ni priorité, ni clôture, ni attribution, ni commentaire, ni suppression", async () => {
+  it("ni priorité, ni clôture (demande non traitée), ni attribution, ni commentaire, ni suppression", async () => {
     const texte = texteDe(await ecran());
-    expect(texte).not.toMatch(/Priorité|Clôturée|Attribuée|Commentaire|Supprimer|Passer En cours|Marquer Traitée|désactivée/);
+    expect(texte).not.toMatch(/Priorité|Clôturée|Attribuée|Commentaire|Supprimer|désactivée/);
   });
 
   it("le statut vient de la base (En cours)", async () => {

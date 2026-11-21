@@ -24,3 +24,8 @@ export function formaterDateHeure(date: Date): string {
   const minutes = parties.minute.padStart(2, "0");
   return `${Number(parties.day)} ${parties.month} ${parties.year}, ${heure} h ${minutes}`;
 }
+
+/** Heure seule, en heure de Paris : « 9 h 11 » (encadré « modifiée par », I4). */
+export function formaterHeure(date: Date): string {
+  return formaterDateHeure(date).split(", ").at(-1)!;
+}

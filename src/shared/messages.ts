@@ -277,3 +277,39 @@ export const MESSAGES_DETAIL = {
   retourAuxDemandes: "Retour aux demandes",
   chargement: "Chargement…",
 } as const;
+
+/**
+ * Changement de statut, écran I4 (EXPERIENCE.md, FR-16 ; décisions d'Aurel
+ * du 21 nov. 2026 pour la fenêtre « Rouvrir »). Les libellés des boutons
+ * viennent de `libelleTransition` (`src/shared/libelles.ts`).
+ */
+export const MESSAGES_STATUT = {
+  /** Nom du groupe de boutons, pour les lecteurs d'écran. */
+  actions: "Changer le statut",
+  /** Toast de succès (5 s). */
+  misAJour: "Statut mis à jour",
+  /** Toast d'erreur (jusqu'à fermeture) : rien n'a changé. */
+  echec: "Le statut n'a pas pu être modifié. Réessayez.",
+  /** Bloc « Informations », demande *Traitée*. */
+  clotureeLe: "Clôturée le",
+  /** Fenêtre de confirmation de la réouverture. */
+  fenetreRouvrirTitre: (reference: string) => `Rouvrir la demande ${reference} ?`,
+  fenetreRouvrirTexte: "Elle repassera En cours et sa date de clôture sera effacée.",
+  annuler: "Annuler",
+  confirmerRouvrir: "Rouvrir la demande",
+  /** Encadré quand un collègue est passé avant, sans savoir qui (cas imprévu). */
+  modifieeEntreTemps: "Cette demande a été modifiée entre-temps. L'affichage a été mis à jour.",
+} as const;
+
+/**
+ * Encadré d'information quand un collègue a changé le statut juste avant
+ * (EXPERIENCE.md, I4 « modifiée entre-temps ») : « Cette demande a été
+ * modifiée par Lucas Bernard à 9 h 11. L'affichage a été mis à jour. »
+ * `heure` est déjà écrite à la française (`formaterHeure`).
+ */
+export function messageModifieePar(nom: string, heure: string): string {
+  return `Cette demande a été modifiée par ${nom} à ${heure}. L'affichage a été mis à jour.`;
+}
+
+/** Bouton qui ferme un toast d'erreur (ceux-ci restent jusqu'à fermeture). */
+export const MESSAGE_FERMER_NOTIFICATION = "Fermer la notification";

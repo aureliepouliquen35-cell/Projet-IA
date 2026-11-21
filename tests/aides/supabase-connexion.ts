@@ -27,6 +27,15 @@ import { vi } from "vitest";
 //   majuscules, `null` si inconnue, événements renvoyés dans l'ordre donné
 //   par le test (la vraie fonction les trie) ; une demande sans
 //   `evenements` a son seul « Demande créée » par le demandeur.
+// - Changement de statut (story 1.11) : `changer_statut` par le client de
+//   session, sur les mêmes demandes, avec les règles de la migration : refus
+//   `NV201`, `NV301` (nouveau statut absent, inconnu ou *Nouvelle*),
+//   `NV302` (statut vu inconnu) ; `introuvable`, `inchange`, `refuse`
+//   (passage non permis depuis le statut réel, ou réouverture sans avoir vu
+//   *Traitée*) ou `applique` (statut, date de clôture, événement au nom de la
+//   personne connectée, à l'heure de l'horloge simulée) ; `modifiee_par`
+//   = auteur et date du dernier événement `statut` si le statut réel n'est
+//   pas celui vu. `lire_demande` renvoie ensuite la demande modifiée.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -89,12 +98,35 @@ export type DemandeSimulee = {
   canal?: "formulaire" | "telephone" | "email";
   /** Par défaut : la création par le demandeur, à la date de dépôt. */
   evenements?: EvenementSimule[];
+  /** Date de clôture (story 1.11) ; par défaut `null`. */
+  date_cloture?: string | null;
 };
 
-/** Un événement de l'historique, tel que `lire_demande` le renvoie. */
-export type EvenementSimule = { type: string; auteur: string; date: string };
+/**
+ * Un événement de l'historique, tel que `lire_demande` le renvoie.
+ * `auteur_nom`, `ancien_statut` et `nouveau_statut` valent `null` s'ils
+ * ne sont pas donnés (création par le demandeur).
+ */
+export type EvenementSimule = {
+  type: string;
+  auteur: string | null;
+  auteur_nom?: string | null;
+  ancien_statut?: string | null;
+  nouveau_statut?: string | null;
+  date: string;
+};
 
-/** Ce que `lire_demande` (migration 1.10) renvoie pour une demande. */
+/** Événement complet, comme `lire_demande` (migration 1.11) le renvoie. */
+const evenementComplet = (e: EvenementSimule) => ({
+  type: e.type,
+  auteur: e.auteur,
+  auteur_nom: e.auteur_nom ?? null,
+  ancien_statut: e.ancien_statut ?? null,
+  nouveau_statut: e.nouveau_statut ?? null,
+  date: e.date,
+});
+
+/** Ce que `lire_demande` (migration 1.11) renvoie pour une demande. */
 export function detailSimule(d: DemandeSimulee) {
   const evenements = d.evenements ?? [{ type: "creation", auteur: "demandeur", date: d.date_depot }];
   return {
@@ -110,8 +142,9 @@ export function detailSimule(d: DemandeSimulee) {
     canal: d.canal ?? "formulaire",
     statut: d.statut,
     date_depot: d.date_depot,
+    date_cloture: d.date_cloture ?? null,
     // Dans l'ordre donné : les tests le fixent eux-mêmes (la base trie).
-    evenements,
+    evenements: evenements.map(evenementComplet),
   };
 }
 
@@ -161,6 +194,9 @@ export function fabriquerDemandes(total: number, nouvelles = 0): DemandeSimulee[
     };
   });
 }
+
+/** Passages permis de la migration 1.11 (`transition_statut_permise`). */
+const PASSAGES_PERMIS = ["nouvelle>en_cours", "nouvelle>traitee", "en_cours>traitee", "traitee>en_cours"];
 
 /** Définition « à traiter » de la migration (AD-5). */
 const aTraiter = (d: DemandeSimulee) =>
@@ -311,7 +347,7 @@ export function creerSimulationConnexion() {
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
       void signal;
       if (pannesRpc[nom]) return pannesRpc[nom];
-      if (nom !== "compter_a_traiter" && nom !== "lister_demandes" && nom !== "lire_demande") {
+      if (!["compter_a_traiter", "lister_demandes", "lire_demande", "changer_statut"].includes(nom)) {
         return { data: null, error: { code: "PGRST202", message: `fonction inconnue : ${nom}` } };
       }
       if (!utilisateurInterne()) {
@@ -323,6 +359,7 @@ export function creerSimulationConnexion() {
         const demande = demandes.find((d) => d.reference === reference);
         return { data: demande ? detailSimule(demande) : null, error: null };
       }
+      if (nom === "changer_statut") return changerStatut(parametres);
 
       const entier = (valeur: unknown, defaut: number) =>
         typeof valeur === "number" && Number.isInteger(valeur) ? valeur : defaut;
@@ -351,6 +388,55 @@ export function creerSimulationConnexion() {
       return { data: { total, page, demandes: lignes }, error: null };
     },
   }));
+
+  /** `changer_statut` de la migration 1.11 (appelant déjà vérifié). */
+  function changerStatut(parametres: Record<string, unknown>): RetourRpc {
+    const vers = parametres.p_nouveau_statut;
+    const vu = parametres.p_statut_vu;
+    if (vers !== "en_cours" && vers !== "traitee") {
+      return { data: null, error: { code: "NV301", message: "nouveau statut refusé" } };
+    }
+    if (vu !== "nouvelle" && vu !== "en_cours" && vu !== "traitee") {
+      return { data: null, error: { code: "NV302", message: "statut vu refusé" } };
+    }
+    const reference = String(parametres.p_reference ?? "").toUpperCase();
+    const demande = demandes.find((d) => d.reference === reference);
+    if (!demande) return { data: { resultat: "introuvable", statut: null, modifiee_par: null }, error: null };
+
+    const reel = demande.statut;
+    let modifieePar: { nom: string; date: string } | null = null;
+    if (reel !== vu) {
+      const dernier = (demande.evenements ?? [])
+        .filter((e) => e.type === "statut" && e.auteur_nom)
+        .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
+        .at(-1);
+      if (dernier) modifieePar = { nom: dernier.auteur_nom!, date: dernier.date };
+    }
+    const reponse = (resultat: string, statut: string) => ({
+      data: { resultat, statut, modifiee_par: modifieePar },
+      error: null,
+    });
+    if (reel === vers) return reponse("inchange", reel);
+    if (!PASSAGES_PERMIS.includes(`${reel}>${vers}`) || (reel === "traitee" && vu !== "traitee")) {
+      return reponse("refuse", reel);
+    }
+
+    const date = new Date(maintenant).toISOString().replace("Z", "+00:00");
+    demande.evenements = [
+      ...(demande.evenements ?? [{ type: "creation", auteur: "demandeur", date: demande.date_depot }]),
+      {
+        type: "statut",
+        auteur: null,
+        auteur_nom: profils.get(session.id!)!.nom,
+        ancien_statut: reel,
+        nouveau_statut: vers,
+        date,
+      },
+    ];
+    demande.statut = vers;
+    demande.date_cloture = vers === "traitee" ? date : null;
+    return reponse("applique", vers);
+  }
 
   const createClient = vi.fn(async () => ({
     auth: { signInWithPassword, signOut, getClaims, updateUser },

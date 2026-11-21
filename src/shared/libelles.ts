@@ -18,10 +18,31 @@ export const LIBELLES_CANAUX: Record<Canal, string> = {
   email: "Email",
 };
 
-/** Ce qui s'est passé, pour chaque type d'événement de l'historique (FR-17). */
+/**
+ * Ce qui s'est passé, pour chaque type d'événement de l'historique (FR-17).
+ * Un changement de statut se lit « Statut : Nouvelle → En cours »
+ * (`libelleChangementStatut`).
+ */
 export const LIBELLES_EVENEMENTS: Record<TypeEvenement, string> = {
   creation: "Demande créée",
+  statut: "Statut",
 };
+
+/** « Statut : Nouvelle → En cours » (DESIGN.md, Historique ; FR-16). */
+export function libelleChangementStatut(ancien: Statut, nouveau: Statut): string {
+  return `${LIBELLES_EVENEMENTS.statut} : ${LIBELLES_STATUTS[ancien]} → ${LIBELLES_STATUTS[nouveau]}`;
+}
+
+/**
+ * Bouton du panneau « Statut » pour un passage permis (EXPERIENCE.md, I4) :
+ * « Passer En cours », « Marquer Traitée », ou « Rouvrir (En cours) » depuis
+ * *Traitée*.
+ */
+export function libelleTransition(depuis: Statut, vers: Statut): string {
+  if (vers === "traitee") return "Marquer Traitée";
+  if (depuis === "traitee") return "Rouvrir (En cours)";
+  return "Passer En cours";
+}
 
 /** Auteur d'un événement qui n'est pas un utilisateur interne (FR-17). */
 export const LIBELLES_AUTEURS: Record<AuteurEvenement, string> = {

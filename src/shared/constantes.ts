@@ -86,11 +86,34 @@ export const CANAUX = ["formulaire", "telephone", "email"] as const;
 export type Canal = (typeof CANAUX)[number];
 
 /**
- * Types d'événements que l'historique sait afficher (FR-17). Seule la
- * création est écrite aujourd'hui ; la story 1.11 ajoute le changement de
- * statut (`statut`).
+ * Passages de statut permis (FR-16, RM-4), depuis chaque statut. Jamais de
+ * retour à *Nouvelle*. La base fait foi (`transition_statut_permise`, appelée
+ * par `changer_statut`) ; cette constante ne sert qu'à afficher les boutons
+ * du panneau « Statut », et un test vérifie qu'elle dit la même chose (AD-5).
  */
-export const TYPES_EVENEMENTS = ["creation"] as const;
+export const TRANSITIONS_STATUT: Readonly<Record<Statut, readonly Statut[]>> = {
+  nouvelle: ["en_cours", "traitee"],
+  en_cours: ["traitee"],
+  traitee: ["en_cours"],
+};
+
+/** Statuts vers lesquels on peut aller depuis `statut`, dans l'ordre des boutons. */
+export function transitionsDepuis(statut: Statut): readonly Statut[] {
+  return TRANSITIONS_STATUT[statut];
+}
+
+/**
+ * Statuts qu'un changement peut demander : tous sauf *Nouvelle* (RM-4). Le
+ * serveur refuse tout autre statut sans appeler la base.
+ */
+export const STATUTS_DEMANDABLES = ["en_cours", "traitee"] as const satisfies readonly Statut[];
+export type StatutDemandable = (typeof STATUTS_DEMANDABLES)[number];
+
+/**
+ * Types d'événements que l'historique sait afficher (FR-17) : la création et
+ * le changement de statut (story 1.11).
+ */
+export const TYPES_EVENEMENTS = ["creation", "statut"] as const;
 export type TypeEvenement = (typeof TYPES_EVENEMENTS)[number];
 
 /**

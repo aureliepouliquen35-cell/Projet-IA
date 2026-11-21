@@ -17,8 +17,8 @@ import { MESSAGES_LISTE, nombreDemandes } from "@/shared/messages";
 // Puis : la carte « à traiter » (« — » si le compteur n'a pas pu être lu),
 // la barre de recherche (`?q=`, FR-12), et sous elle, selon le cas :
 //   - la ligne « 42 demandes » (annoncée par la zone `role="status"` de la
-//     barre, toujours présente), le tableau et
-//     sa pagination (qui garde `q`) ;
+//     barre, toujours présente), le tableau (dont chaque ligne ouvre le
+//     détail en gardant `q` et `page`) et sa pagination (qui garde `q`) ;
 //   - « Aucune demande trouvée » quand la recherche ne trouve rien ;
 //   - le message vide quand il n'y a aucune demande en base ;
 //   - le message d'erreur avec « Réessayer » (la barre reste utilisable).
@@ -58,7 +58,11 @@ export async function ContenuDemandes({ searchParams }: { searchParams: Promise<
             <p className="mb-2 text-body-sm text-text-muted">
               <strong className="font-semibold text-text">{nombreDemandes(liste.donnees.total)}</strong>
             </p>
-            <TableauDemandes demandes={liste.donnees.demandes} />
+            <TableauDemandes
+              demandes={liste.donnees.demandes}
+              q={liste.donnees.recherche}
+              page={liste.donnees.page}
+            />
             <Pagination
               total={liste.donnees.total}
               page={liste.donnees.page}

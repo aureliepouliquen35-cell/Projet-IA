@@ -246,3 +246,34 @@ export const MESSAGES_MOT_DE_PASSE = {
 
 /** Encadré d'information de la connexion I1 après 8 h d'inactivité (FR-9). */
 export const MESSAGE_SESSION_EXPIREE = "Votre session a expiré. Reconnectez-vous pour continuer.";
+
+/**
+ * Écran I4 « Détail d'une demande » (EXPERIENCE.md, FR-15, FR-17). Le
+ * message « demande introuvable » est le texte exact de l'UX.
+ */
+export const MESSAGES_DETAIL = {
+  titre: "Détail d'une demande",
+  filAriane: "Fil d'Ariane",
+  /** Lien « ← Demandes » du fil d'Ariane. */
+  retourListe: "Demandes",
+  blocDemande: "Demande",
+  blocDemandeur: "Demandeur",
+  blocInformations: "Informations",
+  blocHistorique: "Historique",
+  panneauStatut: "Statut",
+  statutActuel: "Actuel :",
+  nom: "Nom",
+  email: "Email",
+  telephone: "Téléphone",
+  entreprise: "Entreprise",
+  categorie: "Catégorie",
+  canal: "Canal",
+  deposeeLe: "Déposée le",
+  /** Téléphone absent. */
+  nonRenseigne: "Non renseigné",
+  /** Entreprise absente. */
+  nonRenseignee: "Non renseignée",
+  introuvable: "Cette demande n'existe pas ou a été supprimée.",
+  retourAuxDemandes: "Retour aux demandes",
+  chargement: "Chargement…",
+} as const;

@@ -26,7 +26,7 @@ vi.mock("next/navigation", async (original) => ({
 }));
 
 import LayoutInterne from "@/app/(interne)/layout";
-import { estActif, LienMenu } from "@/components/interne/lien-menu";
+import { estActif, LienMenu, VueLienMenu } from "@/components/interne/lien-menu";
 import { MenuLateral, PastilleATraiter, VERSION } from "@/components/interne/menu-lateral";
 import { UtilisateurConnecte } from "@/components/interne/utilisateur-connecte";
 
@@ -135,6 +135,22 @@ describe("élément actif du menu", () => {
     expect(html).toContain("bg-primary-soft");
     expect(html).toContain("[&amp;_svg]:text-accent-nova");
     expect(html).toContain("shadow-[inset_3px_0_0_var(--color-accent-nova)]");
+  });
+
+  it("menu rendu sur le détail d'une demande : « Demandes » actif", () => {
+    chemin.valeur = "/demandes/NOVA-2026-0042";
+    const html = renderToStaticMarkup(<MenuLateral />);
+    expect(html).toMatch(/<a [^>]*href="\/demandes"[^>]*aria-current="page"|<a [^>]*aria-current="page"[^>]*href="\/demandes"/);
+  });
+
+  it("en attendant l'adresse (Suspense) : le même lien, inactif", () => {
+    const attente = renderToStaticMarkup(
+      <VueLienMenu href="/demandes" icone={<svg />} actif={false}>
+        Demandes
+      </VueLienMenu>,
+    );
+    expect(attente).toContain('href="/demandes"');
+    expect(attente).not.toContain("aria-current");
   });
 
   it("inactif : sans aria-current", () => {

@@ -41,8 +41,8 @@ async function ecran(parametres: Record<string, string | string[]> = {}): Promis
   return renderToStaticMarkup(await ContenuDemandes({ searchParams: Promise.resolve(parametres) }));
 }
 
-/** Les références des lignes du tableau, dans l'ordre. */
-const references = (html: string) => [...html.matchAll(/NOVA-\d{4}-\d{4}/g)].map(([r]) => r);
+/** Les références affichées (texte des liens, pas leur adresse), dans l'ordre. */
+const references = (html: string) => [...html.matchAll(/>(NOVA-\d{4}-\d{4})</g)].map(([, r]) => r);
 
 /** Contenu d'un bouton (lien ou bouton grisé) de la pagination. */
 function bouton(html: string, libelle: string): string {
@@ -97,9 +97,8 @@ describe("accueil : 5 Nouvelle sur 42", () => {
     expect(html).not.toMatch(/@|mailto:|tel:/);
   });
 
-  it("pas de lien vers le détail, de filtre, de « Réinitialiser » ni de « Nouvelle demande »", async () => {
+  it("pas de filtre, de « Réinitialiser » ni de « Nouvelle demande »", async () => {
     const html = await ecran();
-    expect(html).not.toMatch(/href="\/demandes\/NOVA/);
     expect(texteDe(html)).not.toMatch(/Filtres|Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour/);
   });
 

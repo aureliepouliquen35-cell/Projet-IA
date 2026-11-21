@@ -80,3 +80,22 @@ export type Statut = (typeof STATUTS)[number];
 
 /** Nombre de demandes par page de la liste (FR-11, convention « Adresse de la liste »). */
 export const TAILLE_PAGE = 25;
+
+/** Canaux d'arrivée d'une demande, comme dans la base (`demandes.canal`). */
+export const CANAUX = ["formulaire", "telephone", "email"] as const;
+export type Canal = (typeof CANAUX)[number];
+
+/**
+ * Types d'événements que l'historique sait afficher (FR-17). Seule la
+ * création est écrite aujourd'hui ; la story 1.11 ajoute le changement de
+ * statut (`statut`).
+ */
+export const TYPES_EVENEMENTS = ["creation"] as const;
+export type TypeEvenement = (typeof TYPES_EVENEMENTS)[number];
+
+/**
+ * Auteurs d'un événement qui ne sont pas des utilisateurs internes, comme
+ * dans la base (`evenements.auteur_libelle`).
+ */
+export const AUTEURS_EVENEMENTS = ["demandeur", "systeme"] as const;
+export type AuteurEvenement = (typeof AUTEURS_EVENEMENTS)[number];

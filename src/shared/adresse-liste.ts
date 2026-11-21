@@ -7,6 +7,8 @@
 //   de la liste complète.
 // - Une nouvelle recherche revient à la page 1 (on n'y passe pas `page`) ;
 //   la pagination garde `q`.
+// - Le lien d'une ligne vers le détail (I4) garde `q` et `page`
+//   (`adresseDetail`) : le fil d'Ariane ramène à la même liste.
 
 import { ADRESSE_ACCUEIL_INTERNE } from "@/shared/acces";
 import { LONGUEURS_MAXIMALES } from "@/shared/constantes";
@@ -29,12 +31,30 @@ export function lireRecherche(valeur: string | string[] | null | undefined): str
   return Array.from(texte.replace(CARACTERES_CONTROLE, " ").trim()).slice(0, LONGUEUR_MAXIMALE_RECHERCHE).join("").trimEnd();
 }
 
-/** Adresse de la liste pour une recherche et une page. */
-export function adresseListe({ q = "", page = 1 }: { q?: string; page?: number } = {}): string {
+/** Recherche et page d'une liste, telles qu'elles s'écrivent dans une adresse. */
+export type EtatListe = { q?: string; page?: number };
+
+/** `?q=…&page=…`, sans la page 1 ni une recherche vide ; vide s'il n'y a rien. */
+function suiteListe({ q = "", page = 1 }: EtatListe): string {
   const parametres = new URLSearchParams();
   const recherche = lireRecherche(q);
   if (recherche) parametres.set("q", recherche);
   if (page > 1) parametres.set("page", String(page));
   const suite = parametres.toString();
-  return suite ? `${ADRESSE_ACCUEIL_INTERNE}?${suite}` : ADRESSE_ACCUEIL_INTERNE;
+  return suite ? `?${suite}` : "";
+}
+
+/** Adresse de la liste pour une recherche et une page. */
+export function adresseListe(liste: EtatListe = {}): string {
+  return `${ADRESSE_ACCUEIL_INTERNE}${suiteListe(liste)}`;
+}
+
+/**
+ * Adresse du détail d'une demande (I4). Elle porte la recherche et la page
+ * de la liste d'où l'on vient, que le fil d'Ariane « ← Demandes » retrouve
+ * (`adresseListe`) : cela marche après un rechargement, dans un nouvel
+ * onglet et sans JavaScript. Ex. : `/demandes/NOVA-2026-0042?q=helene&page=2`.
+ */
+export function adresseDetail(reference: string, liste: EtatListe = {}): string {
+  return `${ADRESSE_ACCUEIL_INTERNE}/${encodeURIComponent(reference)}${suiteListe(liste)}`;
 }

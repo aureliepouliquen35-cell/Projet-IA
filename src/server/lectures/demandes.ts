@@ -62,7 +62,7 @@ export type ListeDemandes = {
 };
 
 /** Au-delà, on abandonne : la page ne reste pas bloquée. */
-const DELAI_MS = 8000;
+export const DELAI_MS = 8000;
 
 /**
  * Plus grand numéro de page transmis à la base : au-delà, la page demandée
@@ -95,7 +95,7 @@ const schemaListe = z
 const schemaCompteur = z.number().int().nonnegative();
 
 /** Erreur dont le message ne contient que des noms de champs, jamais de valeur lue. */
-function reponseInattendue(fonction: string, erreur: z.ZodError): Error {
+export function reponseInattendue(fonction: string, erreur: z.ZodError): Error {
   const chemins = [...new Set(erreur.issues.map((probleme) => probleme.path.join(".") || "(racine)"))];
   return new Error(`Réponse inattendue de ${fonction} (${chemins.join(", ")}).`);
 }
@@ -121,7 +121,7 @@ async function lire<T>(lecture: string, fn: () => Promise<T>): Promise<ResultatL
 }
 
 /** Applique le réglage de développement `ESSAI_LISTE_DEMANDES` (sans effet ailleurs). */
-async function essai(): Promise<"vide" | null> {
+export async function essai(): Promise<"vide" | null> {
   const mode = modeEssaiListe();
   if (mode === "lent") await attendre(ATTENTE_ESSAI_LENT_MS);
   if (mode === "erreur") throw new Error("Panne simulée (ESSAI_LISTE_DEMANDES=erreur).");

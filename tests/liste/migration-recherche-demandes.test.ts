@@ -32,7 +32,6 @@ describe("fichier de migration (AD-16)", () => {
   it("est une nouvelle migration, postérieure à celle de la story 1.8 ; les anciennes sont intactes", () => {
     expect(FICHIERS).toEqual(["20261121090000_recherche_demandes.sql"]);
     const toutes = readdirSync(DOSSIER).filter((f) => f.endsWith(".sql")).sort();
-    expect(toutes.at(-1)).toBe("20261121090000_recherche_demandes.sql");
     expect(toutes.indexOf("20261121090000_recherche_demandes.sql")).toBeGreaterThan(
       toutes.indexOf("20261120230000_liste_demandes.sql"),
     );

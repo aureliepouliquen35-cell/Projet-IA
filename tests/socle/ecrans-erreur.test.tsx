@@ -25,6 +25,11 @@ describe("S2 — page introuvable", () => {
     expect(html).toContain('aria-label="Nova Services"');
   });
 
+  it("n'a pas de pastille d'icône (décision d'Aurel, 21 nov. 2026)", () => {
+    expect(html).not.toContain("bg-accent-nova-soft");
+    expect(html).not.toContain("file-question");
+  });
+
   it("n'a pas de lien « Retour aux demandes » (story 1.8)", () => {
     expect(html).not.toContain("Retour aux demandes");
   });

@@ -22,6 +22,11 @@ import { vi } from "vitest";
 //   Recherche (story 1.9, `p_q`) : nettoyée (bords, 150 caractères), sans
 //   accents ni majuscules, cherchée telle quelle dans la référence, le nom,
 //   l'email, l'entreprise et l'objet ; `total` = nombre de résultats.
+// - Détail d'une demande (story 1.10) : `lire_demande` par le client de
+//   session, sur les mêmes demandes : même refus `NV201`, référence mise en
+//   majuscules, `null` si inconnue, événements renvoyés dans l'ordre donné
+//   par le test (la vraie fonction les trie) ; une demande sans
+//   `evenements` a son seul « Demande créée » par le demandeur.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -76,7 +81,39 @@ export type DemandeSimulee = {
   categorie: string;
   statut: "nouvelle" | "en_cours" | "traitee";
   priorite: "normale" | "urgente";
+  /** Lus par le détail (story 1.10) seulement ; facultatifs ici. */
+  telephone?: string | null;
+  /** Par défaut : « Description : {objet}. » */
+  description?: string;
+  /** Par défaut : `formulaire`. */
+  canal?: "formulaire" | "telephone" | "email";
+  /** Par défaut : la création par le demandeur, à la date de dépôt. */
+  evenements?: EvenementSimule[];
 };
+
+/** Un événement de l'historique, tel que `lire_demande` le renvoie. */
+export type EvenementSimule = { type: string; auteur: string; date: string };
+
+/** Ce que `lire_demande` (migration 1.10) renvoie pour une demande. */
+export function detailSimule(d: DemandeSimulee) {
+  const evenements = d.evenements ?? [{ type: "creation", auteur: "demandeur", date: d.date_depot }];
+  return {
+    id: d.id,
+    reference: d.reference,
+    nom: d.nom,
+    email: d.email,
+    telephone: d.telephone ?? null,
+    entreprise: d.entreprise,
+    objet: d.objet,
+    description: d.description ?? `Description : ${d.objet}.`,
+    categorie: d.categorie,
+    canal: d.canal ?? "formulaire",
+    statut: d.statut,
+    date_depot: d.date_depot,
+    // Dans l'ordre donné : les tests le fixent eux-mêmes (la base trie).
+    evenements,
+  };
+}
 
 /** `normaliser_recherche` de la migration 1.9 : sans accents, en minuscules. */
 export function normaliserRecherche(texte: string): string {
@@ -274,13 +311,18 @@ export function creerSimulationConnexion() {
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
       void signal;
       if (pannesRpc[nom]) return pannesRpc[nom];
-      if (nom !== "compter_a_traiter" && nom !== "lister_demandes") {
+      if (nom !== "compter_a_traiter" && nom !== "lister_demandes" && nom !== "lire_demande") {
         return { data: null, error: { code: "PGRST202", message: `fonction inconnue : ${nom}` } };
       }
       if (!utilisateurInterne()) {
         return { data: null, error: { code: "NV201", message: "Accès refusé" } };
       }
       if (nom === "compter_a_traiter") return { data: demandes.filter(aTraiter).length, error: null };
+      if (nom === "lire_demande") {
+        const reference = String(parametres.p_reference ?? "").toUpperCase();
+        const demande = demandes.find((d) => d.reference === reference);
+        return { data: demande ? detailSimule(demande) : null, error: null };
+      }
 
       const entier = (valeur: unknown, defaut: number) =>
         typeof valeur === "number" && Number.isInteger(valeur) ? valeur : defaut;

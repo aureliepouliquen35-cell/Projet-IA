@@ -52,3 +52,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-9-retrouver-demande-recherche.md`
   summary: Exécuter vraiment `lister_demandes` avec `p_q` sur une base Postgres de test (accents, majuscules, entreprise vide, `%` cherché tel quel), au lieu de la seule simulation JavaScript.
   evidence: Les tests FR-12 vérifient une copie JavaScript de la règle (NFD, qui diffère de `unaccent` pour œ, ß, ø) et le texte de la migration ; aucune base de test n'existe dans le dépôt (même constat qu'en 1.8).
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-consulter-detail-historique-demande.md`
+  summary: Exécuter vraiment `lire_demande` sur une base Postgres de test (référence inconnue → `null`, minuscules, ordre des événements par date puis identifiant, refus `NV201`).
+  evidence: Les tests 1.10 lisent le texte de la migration et une simulation JavaScript ; aucune base de test n'existe dans le dépôt (même constat qu'en 1.8 et 1.9). Retirer le `order by` du `jsonb_agg` ne ferait échouer qu'un test sur le texte SQL.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-consulter-detail-historique-demande.md`
+  summary: Story 1.11 — élargir le schéma Zod de `lireDemande` (`TYPES_EVENEMENTS`, `AUTEURS_EVENEMENTS`) et les libellés avant que la base écrive des événements `statut` ou un auteur interne ; prévoir qu'une version 1.10 remise en service (retour arrière Vercel, AD-16) ne tombe pas en S3 sur ces demandes.
+  evidence: `schemaDetail` n'accepte que `type = creation` et `auteur = demandeur|systeme` ; tout autre événement en base fait lever la lecture, donc l'écran S3 sur le détail de la demande concernée.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-consulter-detail-historique-demande.md`
+  summary: Écran S3 dans l'espace interne : une panne sur une page interne remonte à `src/app/error.tsx`, qui remplace aussi le menu latéral et ne propose pas « Retour aux demandes » (EXPERIENCE.md, S3).
+  evidence: `src/app/(interne)` n'a pas d'`error.tsx` ; le détail (1.10) est la première page interne qui lève une panne au lieu d'afficher un état d'erreur sur place. `src/components/ecran-erreur.tsx` note déjà « Liens vers les demandes (personne connectée) : à venir ».

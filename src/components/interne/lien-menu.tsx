@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
 // est la sienne ou une de ses sous-pages (`/demandes/NOVA-2026-0042`) :
 // fond bleu très clair, icône violette, barre violette de 3 px à gauche, et
 // `aria-current="page"` pour les lecteurs d'écran.
+//
+// L'adresse n'est pas connue d'avance sous une page à segment dynamique
+// (`/demandes/[reference]`) : avec Cache Components, `usePathname()` y
+// attend la requête. `LienMenu` est donc placé sous `<Suspense>` par le menu,
+// avec `VueLienMenu` inactif en attendant (doc Next.js, `usePathname`).
 
 /** Vrai si `chemin` est `adresse`, seule ou suivie de `/…`. */
 export function estActif(chemin: string | null, adresse: string): boolean {
@@ -17,12 +22,7 @@ export function estActif(chemin: string | null, adresse: string): boolean {
   return chemin === adresse || chemin.startsWith(`${adresse}/`);
 }
 
-export function LienMenu({
-  href,
-  icone,
-  children,
-  fin,
-}: {
+type ProprietesLienMenu = {
   href: string;
   /** Icône lucide-react, déjà rendue, cachée aux lecteurs d'écran. */
   icone: ReactNode;
@@ -30,8 +30,15 @@ export function LienMenu({
   children: ReactNode;
   /** Placé à droite du libellé (pastille). */
   fin?: ReactNode;
-}) {
-  const actif = estActif(usePathname(), href);
+};
+
+/** L'élément du menu, actif selon l'adresse en cours. */
+export function LienMenu(proprietes: ProprietesLienMenu) {
+  return <VueLienMenu {...proprietes} actif={estActif(usePathname(), proprietes.href)} />;
+}
+
+/** L'élément du menu, actif ou non, sans lire l'adresse. */
+export function VueLienMenu({ href, icone, children, fin, actif }: ProprietesLienMenu & { actif: boolean }) {
   return (
     <Link
       href={href}

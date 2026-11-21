@@ -38,7 +38,8 @@ async function ecran(parametres: Record<string, string | string[]> = {}): Promis
   return renderToStaticMarkup(await ContenuDemandes({ searchParams: Promise.resolve(parametres) }));
 }
 
-const references = (html: string) => [...html.matchAll(/NOVA-\d{4}-\d{4}/g)].map(([r]) => r);
+/** Les références affichées (texte des liens, pas leur adresse), dans l'ordre. */
+const references = (html: string) => [...html.matchAll(/>(NOVA-\d{4}-\d{4})</g)].map(([, r]) => r);
 
 /** Texte de la zone d'annonce toujours présente (`role="status"`). */
 const annonce = (html: string) =>

@@ -1,9 +1,10 @@
-import { CircleAlert, FileQuestionMark, RotateCw, SquarePlus } from "lucide-react";
+import { CircleAlert, RotateCw, SquarePlus } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formaterDateHeure } from "@/shared/dates";
 import { MESSAGE_ERREUR_INATTENDUE, MESSAGE_PAGE_INTROUVABLE } from "@/shared/messages";
 
@@ -21,7 +22,8 @@ function EcranErreur({
   actions,
   pied,
 }: {
-  icone: ReactNode;
+  /** Pastille d'icône au-dessus du message ; absente sur S2. */
+  icone?: ReactNode;
   message: string;
   actions: ReactNode;
   pied?: ReactNode;
@@ -29,8 +31,8 @@ function EcranErreur({
   return (
     <main className="mx-auto flex w-full max-w-form flex-1 flex-col justify-center px-gutter-mobile py-12">
       <Logo />
-      <div className="mt-8">{icone}</div>
-      <h1 className="mt-4 text-page-title text-text">{message}</h1>
+      {icone && <div className="mt-8">{icone}</div>}
+      <h1 className={cn("text-page-title text-text", icone ? "mt-4" : "mt-8")}>{message}</h1>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">{actions}</div>
       {pied}
     </main>
@@ -48,19 +50,22 @@ function LienDeposerDemande({ variante }: { variante: "principal" | "secondaire"
   );
 }
 
-/** S2 — Page introuvable. */
-export function EcranPageIntrouvable() {
-  return (
-    <EcranErreur
-      icone={
-        <span className="flex size-control items-center justify-center rounded-full bg-accent-nova-soft text-accent-nova">
-          <FileQuestionMark aria-hidden="true" className="size-5" />
-        </span>
-      }
-      message={MESSAGE_PAGE_INTROUVABLE}
-      actions={<LienDeposerDemande variante="principal" />}
-    />
-  );
+/**
+ * S2 — Page introuvable. Par défaut, le message général et « Déposer une
+ * demande » ; une page interne peut donner son propre message et son lien
+ * (détail I4 : « Cette demande n'existe pas… » et « Retour aux demandes »).
+ *
+ * Logo gardé, sans pastille d'icône (décisions d'Aurel, 21 nov. 2026) : la
+ * feuille au point d'interrogation faisait croire à une anomalie de la page.
+ */
+export function EcranPageIntrouvable({
+  message = MESSAGE_PAGE_INTROUVABLE,
+  actions = <LienDeposerDemande variante="principal" />,
+}: {
+  message?: string;
+  actions?: ReactNode;
+} = {}) {
+  return <EcranErreur message={message} actions={actions} />;
 }
 
 /** S3 — Erreur inattendue, avec la ligne à recopier pour le support. */

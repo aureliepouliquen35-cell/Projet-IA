@@ -1,0 +1,154 @@
+import "server-only";
+
+import { cache } from "react";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
+import { exigerUtilisateur } from "@/server/garde";
+import { DELAI_MS, essai, reponseInattendue } from "@/server/lectures/demandes";
+import {
+  AUTEURS_EVENEMENTS,
+  CANAUX,
+  FORME_REFERENCE,
+  STATUTS,
+  TYPES_EVENEMENTS,
+  type AuteurEvenement,
+  type Canal,
+  type Statut,
+  type TypeEvenement,
+} from "@/shared/constantes";
+import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
+
+// Lecture de l'écran I4 « Détail d'une demande » (AD-1) : une demande et
+// son historique. Appelée par un Server Component, jamais depuis le
+// navigateur.
+//
+// - Elle commence par `exigerUtilisateur()` (AD-7) : sans session, ou avec
+//   un compte inactif, renvoi vers la connexion.
+// - La référence est mise en majuscules et sa forme vérifiée : une adresse
+//   mal formée (`/demandes/abc`) ne fait aucun appel à la base.
+// - Elle passe par la fonction SQL `lire_demande` avec la session de la
+//   personne (rôle `authenticated`) : aucune table n'est lisible
+//   directement (AD-9). La réponse est contrôlée (Zod) avant d'être affichée.
+// - `null` : aucune demande ne porte cette référence (page « demande
+//   introuvable »).
+// - Une panne (base injoignable, refus, réponse inattendue) est **levée** :
+//   la page affiche l'écran S3 et `onRequestError` la journalise avec son
+//   code et le chemin de la page (la référence), jamais le message de
+//   l'erreur. Les messages écrits ici ne contiennent que des codes et des
+//   noms de champs, aucune donnée du demandeur (AD-12, AD-13).
+// - Une seule lecture par requête (`cache` de React).
+
+/** Une ligne de l'historique (FR-17). */
+export type EvenementDemande = {
+  type: TypeEvenement;
+  auteur: AuteurEvenement;
+  /** Date de l'événement, au format ISO (UTC). */
+  date: string;
+};
+
+/** Une demande, telle que l'écran I4 l'affiche. */
+export type DetailDemande = {
+  id: string;
+  reference: string;
+  /** Nom du demandeur. */
+  nom: string;
+  email: string;
+  /** `null` s'il n'a pas été donné. */
+  telephone: string | null;
+  /** `null` si elle n'a pas été donnée. */
+  entreprise: string | null;
+  objet: string;
+  /** Texte tel que saisi, retours à la ligne compris (jamais du HTML). */
+  description: string;
+  /** Nom de la catégorie. */
+  categorie: string;
+  canal: Canal;
+  statut: Statut;
+  /** Date de dépôt, au format ISO (UTC). */
+  dateDepot: string;
+  /** Du plus ancien au plus récent. */
+  evenements: EvenementDemande[];
+};
+
+const schemaDate = z.string().refine((texte) => !Number.isNaN(Date.parse(texte)));
+
+const schemaDetail = z.object({
+  id: z.string().regex(FORME_IDENTIFIANT),
+  reference: z.string().regex(FORME_REFERENCE),
+  nom: z.string(),
+  email: z.string(),
+  telephone: z.string().nullable(),
+  entreprise: z.string().nullable(),
+  objet: z.string(),
+  description: z.string(),
+  categorie: z.string(),
+  canal: z.enum(CANAUX),
+  statut: z.enum(STATUTS),
+  date_depot: schemaDate,
+  evenements: z.array(
+    z.object({
+      type: z.enum(TYPES_EVENEMENTS),
+      auteur: z.enum(AUTEURS_EVENEMENTS),
+      date: schemaDate,
+    }),
+  ),
+});
+
+const enIso = (texte: string) => new Date(texte).toISOString();
+
+/**
+ * Référence lue dans l'adresse (`/demandes/nova-2026-0042`) : en
+ * majuscules, sans espaces de bord ; `null` si elle n'a pas la forme
+ * `NOVA-AAAA-NNNN`.
+ */
+export function lireReference(valeur: string): string | null {
+  const reference = valeur.trim().toUpperCase();
+  return FORME_REFERENCE.test(reference) ? reference : null;
+}
+
+/**
+ * Une demande et son historique (FR-15, FR-17, RM-6), ou `null` si elle
+ * n'existe pas (référence inconnue ou mal formée).
+ */
+export const lireDemande = cache(async (valeur: string): Promise<DetailDemande | null> => {
+  await exigerUtilisateur();
+  const reference = lireReference(valeur);
+  if (!reference) return null;
+
+  // Réglage de développement `ESSAI_LISTE_DEMANDES` : « lent » et « erreur »
+  // (sans effet hors de `npm run dev`).
+  await essai();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("lire_demande", { p_reference: reference })
+    .abortSignal(AbortSignal.timeout(DELAI_MS));
+  if (error) {
+    throw new Error(`La fonction lire_demande a échoué (code ${error.code || "inconnu"}).`);
+  }
+  if (data === null) return null;
+
+  const resultat = schemaDetail.safeParse(data);
+  if (!resultat.success) throw reponseInattendue("lire_demande", resultat.error);
+  const demande = resultat.data;
+  if (demande.reference !== reference) {
+    throw new Error("Réponse inattendue de lire_demande (reference).");
+  }
+
+  return {
+    id: demande.id,
+    reference: demande.reference,
+    nom: demande.nom,
+    email: demande.email,
+    telephone: demande.telephone,
+    entreprise: demande.entreprise,
+    objet: demande.objet,
+    description: demande.description,
+    categorie: demande.categorie,
+    canal: demande.canal,
+    statut: demande.statut,
+    dateDepot: enIso(demande.date_depot),
+    evenements: demande.evenements.map(({ type, auteur, date }) => ({ type, auteur, date: enIso(date) })),
+  };
+});

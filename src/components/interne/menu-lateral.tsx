@@ -2,7 +2,7 @@ import { Inbox } from "lucide-react";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { LienMenu } from "@/components/interne/lien-menu";
+import { LienMenu, VueLienMenu } from "@/components/interne/lien-menu";
 import { SqueletteUtilisateur, UtilisateurConnecte } from "@/components/interne/utilisateur-connecte";
 import { Logo } from "@/components/logo";
 import { compterATraiter } from "@/server/lectures/demandes";
@@ -27,6 +27,10 @@ import paquet from "../../../package.json";
 // `<Suspense>` (Cache Components) ; le reste du menu s'affiche tout de suite.
 // Le menu n'est pas relu quand on passe d'une page de la liste à l'autre :
 // la pastille est juste au plus tard au rafraîchissement (FR-14).
+//
+// L'élément actif dépend de l'adresse, inconnue d'avance sous le détail
+// d'une demande (`/demandes/[reference]`) : il est sous `<Suspense>`, avec le
+// même lien, inactif et sans pastille, en attendant.
 
 /** Numéro de version affiché, celui de `package.json` (AD-17). */
 export const VERSION = paquet.version;
@@ -63,17 +67,25 @@ export function MenuLateral() {
       <nav aria-label={MESSAGES_INTERNE.menu} className="lg:flex-1">
         <ul className="flex gap-1 lg:flex-col">
           <li>
-            <LienMenu
-              href={ADRESSE_ACCUEIL_INTERNE}
-              icone={<Inbox aria-hidden="true" />}
-              fin={
-                <Suspense fallback={null}>
-                  <PastilleATraiter />
-                </Suspense>
+            <Suspense
+              fallback={
+                <VueLienMenu href={ADRESSE_ACCUEIL_INTERNE} icone={<Inbox aria-hidden="true" />} actif={false}>
+                  {MESSAGES_INTERNE.demandes}
+                </VueLienMenu>
               }
             >
-              {MESSAGES_INTERNE.demandes}
-            </LienMenu>
+              <LienMenu
+                href={ADRESSE_ACCUEIL_INTERNE}
+                icone={<Inbox aria-hidden="true" />}
+                fin={
+                  <Suspense fallback={null}>
+                    <PastilleATraiter />
+                  </Suspense>
+                }
+              >
+                {MESSAGES_INTERNE.demandes}
+              </LienMenu>
+            </Suspense>
           </li>
         </ul>
       </nav>

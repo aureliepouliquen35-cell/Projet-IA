@@ -67,3 +67,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-12-mettre-parcours-principal-en-ligne.md`
   summary: Lancer automatiquement (GitHub Actions) lint, types, tests Vitest et gitleaks à chaque envoi sur `main`, puisque chaque envoi publie directement la production sur Vercel.
   evidence: Relecture 1.12 : les vérifications de l'étape 1 de « Mise en ligne » (docs/deploiement.md) reposent sur un lancement à la main ; le dépôt est public et les commits vont directement sur `main`. Aucun dossier `.github/` n'existe encore (il arrive avec la sauvegarde de nuit, story 1.13, et l'exploitation, epic 5).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-sauvegarder-production-chaque-nuit.md`
+  summary: Exécuter dans un test la requête SQL de `scripts/sauvegarde/sauvegarder.sh noter` (appel de `ecrire_journal` avec les variables psql) sur une vraie base Postgres portant la migration du journal.
+  evidence: Relecture 1.13 : le faux `psql` des tests note seulement le texte envoyé ; une erreur de conversion ou de variable ne se verrait qu'au premier lancement réel (croix rouge sur l'étape « Noter »). Non vérifié faute de banc Postgres dans le dépôt ; le premier lancement à la main de la tâche le tranchera.

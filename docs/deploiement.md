@@ -1,6 +1,6 @@
 # Déploiement de Nova Services
 
-Ce document décrit la mise en place de Nova Services sur un projet Supabase. Il décrit aussi la [mise en ligne](#mise-en-ligne) (story 1.12) ; il sera complété par l'exploitation (epic 5).
+Ce document décrit la mise en place de Nova Services sur un projet Supabase. Il décrit aussi la [mise en ligne](#mise-en-ligne) (story 1.12) et la [sauvegarde de nuit](#sauvegarde-de-nuit) de la base prod (story 1.13) ; il sera complété par l'exploitation (epic 5).
 
 Deux projets Supabase existent : **dev** (poste local, essais) et **prod** (production Vercel). Faites toujours chaque étape sur **dev** d'abord, vérifiez-la, puis seulement sur **prod**.
 
@@ -255,3 +255,83 @@ git push origin v0.1.0
 Le tag, la `version` de `package.json` et la version du menu sont toujours identiques (`v0.1.0`, `0.1.0`, « Version v0.1.0 »). Pour une version suivante : changez d'abord la `version` de `package.json` (par exemple `0.2.0`), refaites l'étape 1, envoyez `main`, vérifiez en production, puis posez le tag `v0.2.0`.
 
 Si une mise en production pose problème, Vercel permet de revenir au déploiement de production précédent (*Deployments › Instant Rollback* ; un seul retour possible avec l'offre gratuite). La procédure complète viendra avec l'exploitation (epic 5).
+
+## Sauvegarde de nuit
+
+L'offre gratuite de Supabase ne garantit aucune sauvegarde. Chaque nuit, une tâche GitHub Actions (`.github/workflows/sauvegarde-nuit.yml`) sauvegarde donc la base **prod** (NFR-7 : au plus 24 h de demandes perdues) :
+
+1. elle exporte la base avec la Supabase CLI : rôles, structure et données (comptes de `auth.users` compris, avec leurs mots de passe hachés) ;
+2. elle vérifie que la base est bien une base de Nova (table `public.demandes`) : ce contrôle ne distingue pas dev de prod, c'est la vérification du journal de **prod** (étape 5, point 2) qui confirme que c'est bien prod qui est sauvegardée ; elle chiffre l'export avec un mot de passe (AES256), puis vérifie que le fichier se déchiffre ;
+3. elle publie **seulement le fichier chiffré**, `sauvegarde-prod-AAAA-MM-JJ-HHMM.tar.gz.gpg` (heure de Paris), comme artefact gardé **7 jours** ;
+4. enfin, elle écrit `sauvegarde_reussie` dans `journal_technique`.
+
+Elle part vers 2 h 17 à Paris en hiver, 3 h 17 en été (GitHub peut la lancer avec un peu de retard). Tout échec donne une croix rouge dans l'onglet *Actions*, et rien n'est publié tant que le fichier chiffré n'est pas vérifié.
+
+Une nuit en échec porte la perte possible à près de 48 h, et chaque fichier disparaît au bout de 7 jours, même si aucune sauvegarde plus récente n'a réussi : **en cas de croix rouge, corrigez et relancez la tâche à la main le jour même** (étape 4, point 2). Après 7 nuits d'échec, il ne reste plus aucune sauvegarde.
+
+Le dépôt est **public** : les journaux d'exécution et les artefacts le sont aussi, tout compte GitHub peut les télécharger. C'est pourquoi le fichier est chiffré, et pourquoi les deux secrets ci-dessous ne s'écrivent **nulle part ailleurs** que dans GitHub et votre gestionnaire de mots de passe : jamais dans un fichier du dépôt, un message, un ticket ou une conversation (avec un assistant d'IA compris).
+
+La restauration à partir de ce fichier viendra avec l'exploitation (story 5.1).
+
+### 1. Mot de passe de chiffrement
+
+1. Dans votre gestionnaire de mots de passe, créez une entrée « Nova – chiffrement des sauvegardes ».
+2. Faites-lui générer un mot de passe de **40 caractères** (32 au moins : la tâche refuse un mot de passe plus court).
+3. Enregistrez l'entrée. **Sans ce mot de passe, les sauvegardes sont illisibles** : il doit rester dans le gestionnaire, même si le secret GitHub est un jour supprimé.
+
+### 2. Adresse de la base prod
+
+La tâche se connecte à la base par l'adresse *Session pooler* : la connexion directe (`db.<identifiant>.supabase.co`) de l'offre gratuite n'est joignable qu'en IPv6, que GitHub ne sait pas joindre, et le *Transaction pooler* (port `6543`) ne convient pas à l'export.
+
+1. Dans le tableau de bord du projet **prod**, bouton *Connect* (en haut de la page), onglet *Connection String*, méthode **Session pooler** (les intitulés peuvent légèrement varier).
+2. L'adresse a la forme `postgresql://postgres.<identifiant prod>:[YOUR-PASSWORD]@aws-….pooler.supabase.com:5432/postgres` : vérifiez qu'elle contient bien l'identifiant du projet **prod** et le port `5432`.
+3. Ne la recopiez pas encore : elle se colle directement dans GitHub à l'étape suivante, où vous remplacerez `[YOUR-PASSWORD]` par le **mot de passe de la base prod**, rangé dans votre gestionnaire lors de la mise en ligne ([étape 2](#2-projet-supabase-prod)).
+
+Ce mot de passe ne doit contenir que des lettres, des chiffres et `. _ ~ -` : la tâche refuse tout autre caractère (avec d'autres caractères, l'adresse devrait être encodée, et le mot de passe pourrait apparaître en partie dans les journaux publics). S'il en contient d'autres : *Project Settings › Database › Reset database password*, générez un mot de passe fait seulement de lettres et de chiffres, et remplacez l'ancien dans votre gestionnaire. L'application n'utilise pas ce mot de passe : elle n'est pas touchée.
+
+### 3. Secrets GitHub
+
+Sur GitHub, dans le dépôt : *Settings › Secrets and variables › Actions*, onglet *Secrets*, *New repository secret*. Créez les deux secrets, avec exactement ces noms :
+
+| Nom | Valeur |
+|---|---|
+| `SAUVEGARDE_URL_BASE_PROD` | L'adresse *Session pooler* de l'étape 2, collée depuis Supabase, où vous remplacez `[YOUR-PASSWORD]` (crochets compris) par le mot de passe de la base prod, copié depuis le gestionnaire. |
+| `SAUVEGARDE_MOT_DE_PASSE` | Le mot de passe de chiffrement de l'étape 1, copié depuis le gestionnaire. |
+
+GitHub ne réaffiche jamais un secret : pour le corriger, *Update* et collez la nouvelle valeur. Dans les journaux d'exécution, GitHub remplace les secrets par `***` ; la tâche masque aussi le mot de passe de la base contenu dans l'adresse.
+
+### 4. Premier lancement à la main
+
+La tâche n'existe pour GitHub qu'une fois le fichier `.github/workflows/sauvegarde-nuit.yml` envoyé sur `main`.
+
+1. Envoyez `main` sur GitHub (`git push origin main`).
+2. Onglet *Actions* du dépôt, tâche **Sauvegarde de nuit** (colonne de gauche), bouton *Run workflow*, branche `main`, puis *Run workflow*.
+3. Ouvrez l'exécution qui apparaît et attendez qu'elle se termine (quelques minutes) : elle doit avoir une coche verte. En cas de croix rouge, ouvrez l'étape en échec : le message dit quoi faire (tableau ci-dessous).
+
+Messages possibles :
+
+| Message | Ce qu'il faut faire |
+|---|---|
+| « Le secret … est vide ou absent… » | Créez ce secret (étape 3), avec exactement ce nom, puis relancez. Rien n'a été exporté. |
+| « …n'a pas la forme attendue… » ou « …ne contient pas le mot de passe de la base… » | Recollez l'adresse *Session pooler* (étape 2) et remplacez bien `[YOUR-PASSWORD]`, crochets compris. |
+| « …n'est pas celle du « Session pooler »… » | Vous avez pris la connexion directe (`db.….supabase.co`) ou le port `6543` : reprenez l'adresse *Session pooler*, port `5432` (étape 2). |
+| « …SAUVEGARDE_MOT_DE_PASSE est trop court… » | Générez un mot de passe de 40 caractères (étape 1), rangez-le dans le gestionnaire, puis mettez à jour le secret. |
+| « L'export … a échoué. » | Le message au-dessus vient de la Supabase CLI. Souvent : mot de passe de la base faux dans l'adresse (*password authentication failed*), ou projet prod en pause dans Supabase. Corrigez, puis relancez. |
+| « Le mot de passe de la base… contient des caractères spéciaux… » | Dans le projet prod, *Project Settings › Database › Reset database password* : générez un mot de passe fait seulement de lettres et de chiffres, rangez-le dans votre gestionnaire, puis mettez à jour `SAUVEGARDE_URL_BASE_PROD` (étapes 2 et 3). |
+| « …ce n'est pas la base de Nova… » | L'adresse vise un autre projet (ou un projet sans les migrations) : reprenez l'adresse du projet **prod**. Attention, une adresse du projet **dev** passerait ce contrôle : seule la vérification du journal de prod (étape 5, point 2) le révèle. |
+| « Le déchiffrement d'essai a échoué… » | Rien n'a été publié. Relancez ; si cela se reproduit, notez l'heure et le numéro de l'exécution pour le support. |
+| « L'écriture de « sauvegarde_reussie » dans le journal technique a échoué… » | Le fichier chiffré est publié (il est dans les artefacts), mais le journal ne le dit pas. Relancez la tâche ; si cela se reproduit, notez l'heure et le numéro de l'exécution pour le support. |
+
+### 5. Vérifications
+
+Le lendemain matin du premier lancement, puis chaque fois que vous voulez vous assurer que tout va bien :
+
+1. **La sauvegarde de la nuit a réussi** : onglet *Actions*, tâche *Sauvegarde de nuit* : la dernière exécution, déclenchée par *schedule* (la nuit) et non à la main, a une coche verte. En l'ouvrant, la partie *Artifacts* montre un seul artefact, `sauvegarde-prod-AAAA-MM-JJ-HHMM`, qui expire 7 jours plus tard ; les journaux de l'exécution ne montrent ni adresse complète, ni mot de passe (seulement `***`).
+2. **Le journal a moins de 24 heures** : tableau de bord Supabase du projet **prod**, *Table Editor › journal_technique*, filtre `evenement` = `sauvegarde_reussie`, tri par `date_creation` décroissante : la première ligne a moins de 24 heures. Ses détails ne contiennent que le nom du fichier, le numéro de l'exécution (le même que dans *Actions*) et la taille, jamais une donnée de demandeur.
+3. **Le mot de passe de chiffrement est bien rangé** : il est dans votre gestionnaire (étape 1) ; *Settings › Secrets and variables › Actions* liste `SAUVEGARDE_MOT_DE_PASSE` et `SAUVEGARDE_URL_BASE_PROD` (sans afficher leur valeur) ; il n'est dans aucun fichier du dépôt, et `npm run secrets` se termine sans erreur.
+
+### 6. Vérification mensuelle
+
+Une fois par mois, refaites le point 1 de l'étape 5. GitHub **met en pause les tâches planifiées d'un dépôt public après 60 jours sans activité** sur le dépôt : un bandeau l'indique alors dans l'onglet *Actions*, sur la tâche *Sauvegarde de nuit*. Cliquez sur *Enable workflow*, puis relancez-la à la main (étape 4, point 2) pour ne pas attendre la nuit suivante.
+
+GitHub prévient en général par email d'un échec de tâche planifiée (la personne qui a modifié la planification en dernier) ; ne comptez pas seulement sur cet email.

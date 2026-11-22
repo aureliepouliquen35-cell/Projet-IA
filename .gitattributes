@@ -1,0 +1,2 @@
+# Scripts shell : fins de ligne LF, même sur Windows (bash refuse les CRLF).
+*.sh text eol=lf

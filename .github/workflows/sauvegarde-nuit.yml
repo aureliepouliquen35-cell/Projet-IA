@@ -1,0 +1,67 @@
+# Sauvegarde de nuit de la base prod (story 1.13, AD-18, NFR-7).
+#
+# Exporte la base prod (rôles, structure, données), la chiffre avec un mot de
+# passe, garde le fichier chiffré 7 jours comme artefact, puis écrit
+# `sauvegarde_reussie` dans journal_technique. Tout échec donne une croix
+# rouge dans l'onglet Actions.
+#
+# Le dépôt est public : les journaux d'exécution et les artefacts le sont
+# aussi (tout compte GitHub peut les télécharger). Seul le fichier chiffré est
+# publié, et aucun secret n'est affiché. Mode d'emploi : docs/deploiement.md,
+# partie « Sauvegarde de nuit ».
+
+name: Sauvegarde de nuit
+
+on:
+  schedule:
+    # Chaque nuit à 1 h 17 UTC : 2 h 17 à Paris en hiver, 3 h 17 en été.
+    # GitHub peut lancer une tâche planifiée avec un peu de retard.
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sauvegarde-nuit
+  cancel-in-progress: false
+
+jobs:
+  sauvegarder:
+    name: Sauvegarder la base prod
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Installer la Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          # Même version que package-lock.json.
+          version: 3.0.0
+
+      - name: Exporter, chiffrer et vérifier
+        id: preparer
+        env:
+          SAUVEGARDE_URL_BASE_PROD: ${{ secrets.SAUVEGARDE_URL_BASE_PROD }}
+          SAUVEGARDE_MOT_DE_PASSE: ${{ secrets.SAUVEGARDE_MOT_DE_PASSE }}
+        run: bash scripts/sauvegarde/sauvegarder.sh preparer "$RUNNER_TEMP/sauvegarde"
+
+      - name: Publier le fichier chiffré (gardé 7 jours)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.preparer.outputs.nom }}
+          path: ${{ steps.preparer.outputs.fichier }}
+          retention-days: 7
+          if-no-files-found: error
+          # Déjà compressé et chiffré : inutile de recompresser.
+          compression-level: 0
+
+      - name: Noter la sauvegarde dans le journal technique
+        env:
+          SAUVEGARDE_URL_BASE_PROD: ${{ secrets.SAUVEGARDE_URL_BASE_PROD }}
+          FICHIER: ${{ steps.preparer.outputs.fichier }}
+        run: bash scripts/sauvegarde/sauvegarder.sh noter "$FICHIER"

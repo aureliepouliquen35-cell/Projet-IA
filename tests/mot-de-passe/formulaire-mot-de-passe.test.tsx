@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { prerender } from "react-dom/static";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +14,15 @@ const garde = vi.hoisted(() => ({ exigerChangementMotDePasse: vi.fn(async () => 
 vi.mock("@/server/actions/choisir-mot-de-passe", () => ({ actionChoisirMotDePasse: vi.fn() }));
 vi.mock("@/server/actions/se-deconnecter", () => ({ actionSeDeconnecter: vi.fn() }));
 vi.mock("@/server/garde", () => garde);
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+// `connection()` n'a de sens que pendant une vraie requête Next.js.
+const serveur = vi.hoisted(() => ({ connection: vi.fn(() => Promise.resolve()) }));
+vi.mock("next/server", () => serveur);
+// Seul `useRouter` est remplacé : `unstable_rethrow` et `redirect` restent
+// les vrais (reconnaissance de la redirection de Next.js).
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ replace: vi.fn() }),
+}));
 
 import {
   actionApresReponse,
@@ -101,6 +110,19 @@ describe("page I2", () => {
     const page = await rendreEnEntier(<PageNouveauMotDePasse />);
     expect(garde.exigerChangementMotDePasse).toHaveBeenCalledTimes(1);
     expect(page).toContain("Enregistrer et continuer");
+  });
+
+  it("lit la session à chaque visite : `connection()` avant la garde (pas pendant la préparation)", async () => {
+    const ordre: string[] = [];
+    serveur.connection.mockImplementationOnce(async () => {
+      ordre.push("connection");
+    });
+    garde.exigerChangementMotDePasse.mockImplementationOnce(async () => {
+      ordre.push("garde");
+      return { id: "x" };
+    });
+    await rendreEnEntier(<PageNouveauMotDePasse />);
+    expect(ordre).toEqual(["connection", "garde"]);
   });
 
   it("garde qui renvoie ailleurs : aucun formulaire", async () => {
@@ -264,6 +286,33 @@ describe("envoyerMotDePasse", () => {
     const apresReussite = vi.fn();
     const envoiVerrouille = { current: true };
     await envoyerMotDePasse({ valeurs, choisir: async () => undefined, agir: vi.fn(), apresReussite, envoiVerrouille });
+    expect(apresReussite).not.toHaveBeenCalled();
+    expect(envoiVerrouille.current).toBe(true);
+  });
+
+  it("renvoi signalé par la redirection de Next.js (promesse rejetée) : pas de panne, verrou fermé, pas de toast", async () => {
+    // Session expirée ou mot de passe déjà choisi : Next.js rejette la
+    // promesse de la Server Function avec sa redirection.
+    let redirection: unknown;
+    try {
+      redirect("/demandes");
+    } catch (erreur) {
+      redirection = erreur;
+    }
+    const agir = vi.fn();
+    const apresReussite = vi.fn();
+    const envoiVerrouille = { current: true };
+    await envoyerMotDePasse({
+      valeurs,
+      choisir: async () => {
+        throw redirection;
+      },
+      agir,
+      apresReussite,
+      envoiVerrouille,
+    });
+    expect(agir).toHaveBeenCalledWith({ type: "renvoi" });
+    expect(agir).not.toHaveBeenCalledWith(expect.objectContaining({ type: "echec" }));
     expect(apresReussite).not.toHaveBeenCalled();
     expect(envoiVerrouille.current).toBe(true);
   });

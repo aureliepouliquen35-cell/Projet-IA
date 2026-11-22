@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+# rapports et traces de Playwright (npm run test:e2e)
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/

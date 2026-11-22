@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, LoaderCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useTransition, type FormEvent, type Ref } from "react";
 import { toast } from "sonner";
 
@@ -154,6 +154,19 @@ export function actionApresReponse(reponse: Reponse<unknown> | undefined): Actio
   return { type: "echec", message: MESSAGES_MOT_DE_PASSE.enregistrementImpossible };
 }
 
+/**
+ * Vrai pour une erreur interne de Next.js (redirection d'une Server
+ * Function) : `unstable_rethrow` relance celles-là, et seulement celles-là.
+ */
+function estRedirectionNext(erreur: unknown): boolean {
+  try {
+    unstable_rethrow(erreur);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 /** Ce dont l'envoi a besoin : passé en paramètre pour pouvoir être essayé seul. */
 export type DependancesEnvoiMotDePasse = {
   /** Saisie déjà vérifiée par le navigateur. */
@@ -183,9 +196,14 @@ export async function envoyerMotDePasse({
   let reponse: Reponse<unknown> | undefined;
   try {
     reponse = await choisir(valeurs);
-  } catch {
+  } catch (erreur) {
+    // Renvoi par le serveur (session expirée, mot de passe déjà choisi) :
+    // Next.js rejette la promesse avec sa redirection, déjà en cours. Ce
+    // n'est pas une panne : traité comme « aucune réponse » (renvoi).
     // Réseau coupé ou serveur injoignable : même message qu'une panne.
-    reponse = echec("ERREUR_INTERNE", MESSAGES_MOT_DE_PASSE.enregistrementImpossible);
+    reponse = estRedirectionNext(erreur)
+      ? undefined
+      : echec("ERREUR_INTERNE", MESSAGES_MOT_DE_PASSE.enregistrementImpossible);
   }
 
   const suite = actionApresReponse(reponse);

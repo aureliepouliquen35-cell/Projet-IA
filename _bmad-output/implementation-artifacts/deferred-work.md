@@ -64,3 +64,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-11-faire-avancer-demande-nouvelle-traitee.md`
   summary: Tester dans un vrai DOM le câblage des clics du panneau « Statut » (bouton → action, « Rouvrir la demande » de la fenêtre → action, « Annuler » → rien) et l'encadré « modifiée par … » qui reste affiché après `refresh()` (clé `demande.reference`).
   evidence: Les tests du dépôt tournent en environnement `node` avec `renderToStaticMarkup`, sans bibliothèque DOM : les gestionnaires de clic et l'état React ne s'exécutent pas. Vérification manuelle à l'écran en attendant.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-12-mettre-parcours-principal-en-ligne.md`
+  summary: Lancer automatiquement (GitHub Actions) lint, types, tests Vitest et gitleaks à chaque envoi sur `main`, puisque chaque envoi publie directement la production sur Vercel.
+  evidence: Relecture 1.12 : les vérifications de l'étape 1 de « Mise en ligne » (docs/deploiement.md) reposent sur un lancement à la main ; le dépôt est public et les commits vont directement sur `main`. Aucun dossier `.github/` n'existe encore (il arrive avec la sauvegarde de nuit, story 1.13, et l'exploitation, epic 5).

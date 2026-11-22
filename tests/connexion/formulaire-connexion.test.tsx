@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -224,6 +225,30 @@ describe("envoyerConnexion", () => {
       effacerMotDePasse: false,
     });
     expect(envoiVerrouille.current).toBe(false);
+  });
+
+  it("réussite signalée par la redirection de Next.js (promesse rejetée) : pas de panne, verrou fermé", async () => {
+    // Next.js 16 rejette la promesse de la Server Function avec sa
+    // redirection vers « Demandes » : c'est une réussite, pas une erreur.
+    let redirection: unknown;
+    try {
+      redirect("/demandes");
+    } catch (erreur) {
+      redirection = erreur;
+    }
+    const agir = vi.fn();
+    const envoiVerrouille = { current: true };
+    await envoyerConnexion({
+      valeurs,
+      seConnecter: async () => {
+        throw redirection;
+      },
+      agir,
+      envoiVerrouille,
+    });
+    expect(agir).toHaveBeenCalledWith({ type: "reussite" });
+    expect(agir).not.toHaveBeenCalledWith(expect.objectContaining({ type: "echec" }));
+    expect(envoiVerrouille.current).toBe(true);
   });
 
   it("réussite : verrou gardé fermé jusqu'au changement de page", async () => {

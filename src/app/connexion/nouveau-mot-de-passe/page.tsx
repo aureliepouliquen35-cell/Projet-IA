@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { BoutonDeconnexion, RechargementSiRestauree } from "@/components/interne/bouton-deconnexion";
@@ -48,6 +49,10 @@ export default function PageNouveauMotDePasse() {
 
 /** Le formulaire, après la garde. */
 async function ContenuNouveauMotDePasse() {
+  // Lecture à chaque visite, jamais pendant la préparation de la page : la
+  // lecture de la session par Supabase consulte l'heure (`Date.now()`), ce
+  // que Cache Components interdit avant une vraie requête.
+  await connection();
   await exigerChangementMotDePasse();
   return <FormulaireMotDePasse />;
 }

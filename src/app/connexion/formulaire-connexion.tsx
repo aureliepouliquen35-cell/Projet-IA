@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import {
   useEffect,
   useReducer,
@@ -178,6 +179,19 @@ export function actionApresReponse(reponse: Reponse<unknown> | undefined): Actio
   return { type: "echec", message: MESSAGE_ERREUR_INATTENDUE, effacerMotDePasse: false };
 }
 
+/**
+ * Vrai pour une erreur interne de Next.js (redirection d'une Server
+ * Function) : `unstable_rethrow` relance celles-là, et seulement celles-là.
+ */
+function estRedirectionNext(erreur: unknown): boolean {
+  try {
+    unstable_rethrow(erreur);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 /** Ce dont l'envoi a besoin : passé en paramètre pour pouvoir être essayé seul. */
 export type DependancesEnvoiConnexion = {
   /** Saisie déjà vérifiée par le navigateur. */
@@ -203,9 +217,13 @@ export async function envoyerConnexion({
   let reponse: Reponse<unknown> | undefined;
   try {
     reponse = await seConnecter(valeurs);
-  } catch {
+  } catch (erreur) {
+    // Connexion réussie : Next.js rejette la promesse avec sa redirection
+    // vers « Demandes » (ou I2), déjà en cours. Ce n'est pas une panne.
     // Réseau coupé ou serveur injoignable : même message qu'une panne.
-    reponse = echec("ERREUR_INTERNE", MESSAGE_ERREUR_INATTENDUE);
+    reponse = estRedirectionNext(erreur)
+      ? undefined
+      : echec("ERREUR_INTERNE", MESSAGE_ERREUR_INATTENDUE);
   }
 
   const suite = actionApresReponse(reponse);

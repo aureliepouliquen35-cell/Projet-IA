@@ -310,7 +310,9 @@ describe("sauvegarder.sh preparer, matrice de la spec", { timeout: 60_000 }, () 
   it.each([
     ["connexion directe db.….supabase.co", adresse(MDP_BASE, "db.abcdefghij.supabase.co"), SESSION_POOLER],
     ["port 6543 (Transaction pooler)", adresse(MDP_BASE, undefined, 6543), SESSION_POOLER],
-    ["[YOUR-PASSWORD] laissé", adresse("[YOUR-PASSWORD]"), /ne contient pas le mot de passe de la base : remplacez \[YOUR-PASSWORD\]/],
+    ["[YOUR-DATABASE-PASSWORD] laissé", adresse("[YOUR-DATABASE-PASSWORD]"), /ne contient pas le mot de passe de la base : remplacez \[YOUR-DATABASE-PASSWORD\], crochets compris/],
+    ["[YOUR-PASSWORD] laissé", adresse("[YOUR-PASSWORD]"), /ne contient pas le mot de passe de la base : remplacez \[YOUR-DATABASE-PASSWORD\], crochets compris/],
+    ["crochets laissés autour du mot de passe", adresse(`[${MDP_BASE}]`), /est encore entouré de crochets \[ \] : ils font partie de ce qu'il faut remplacer/],
     ["mot de passe de la base vide", adresse(""), /ne contient pas le mot de passe de la base/],
     ["pas une adresse postgres", "https://abcdefghij.supabase.co", FORME],
     ["espace dans l'adresse", adresse(MDP_BASE).replace("/postgres", "/post gres"), FORME],

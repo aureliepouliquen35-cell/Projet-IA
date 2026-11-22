@@ -73,8 +73,12 @@ controler_url() {
   local port="${BASH_REMATCH[5]}"
   masquer "$mot_de_passe_base"
 
-  if [[ -z "$mot_de_passe_base" || "$mot_de_passe_base" == *"YOUR-PASSWORD"* ]]; then
-    arreter "L'adresse SAUVEGARDE_URL_BASE_PROD ne contient pas le mot de passe de la base : remplacez [YOUR-PASSWORD] par celui rangé dans votre gestionnaire de mots de passe ($AIDE)."
+  # Supabase écrit [YOUR-DATABASE-PASSWORD] (ou [YOUR-PASSWORD] selon la version).
+  if [[ -z "$mot_de_passe_base" || "$mot_de_passe_base" == *"YOUR-"*"PASSWORD"* ]]; then
+    arreter "L'adresse SAUVEGARDE_URL_BASE_PROD ne contient pas le mot de passe de la base : remplacez [YOUR-DATABASE-PASSWORD], crochets compris, par celui rangé dans votre gestionnaire de mots de passe ($AIDE)."
+  fi
+  if [[ "$mot_de_passe_base" == *"["* || "$mot_de_passe_base" == *"]"* ]]; then
+    arreter "Le mot de passe de la base, dans SAUVEGARDE_URL_BASE_PROD, est encore entouré de crochets [ ] : ils font partie de ce qu'il faut remplacer. Gardez seulement le mot de passe, entre « : » et « @ » ($AIDE)."
   fi
   # Seulement des caractères qui s'écrivent tels quels dans une adresse : le
   # masque des journaux couvre alors exactement le mot de passe.

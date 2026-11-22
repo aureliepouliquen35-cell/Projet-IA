@@ -284,8 +284,8 @@ La restauration à partir de ce fichier viendra avec l'exploitation (story 5.1).
 La tâche se connecte à la base par l'adresse *Session pooler* : la connexion directe (`db.<identifiant>.supabase.co`) de l'offre gratuite n'est joignable qu'en IPv6, que GitHub ne sait pas joindre, et le *Transaction pooler* (port `6543`) ne convient pas à l'export.
 
 1. Dans le tableau de bord du projet **prod**, bouton *Connect* (en haut de la page), onglet *Connection String*, méthode **Session pooler** (les intitulés peuvent légèrement varier).
-2. L'adresse a la forme `postgresql://postgres.<identifiant prod>:[YOUR-PASSWORD]@aws-….pooler.supabase.com:5432/postgres` : vérifiez qu'elle contient bien l'identifiant du projet **prod** et le port `5432`.
-3. Ne la recopiez pas encore : elle se colle directement dans GitHub à l'étape suivante, où vous remplacerez `[YOUR-PASSWORD]` par le **mot de passe de la base prod**, rangé dans votre gestionnaire lors de la mise en ligne ([étape 2](#2-projet-supabase-prod)).
+2. L'adresse a la forme `postgresql://postgres.<identifiant prod>:[YOUR-DATABASE-PASSWORD]@aws-….pooler.supabase.com:5432/postgres` (selon la version de Supabase, `[YOUR-PASSWORD]`) : vérifiez qu'elle contient bien l'identifiant du projet **prod** et le port `5432`.
+3. Ne la recopiez pas encore : elle se colle directement dans GitHub à l'étape suivante, où vous remplacerez `[YOUR-DATABASE-PASSWORD]`, **crochets compris**, par le **mot de passe de la base prod**, rangé dans votre gestionnaire lors de la mise en ligne ([étape 2](#2-projet-supabase-prod)).
 
 Ce mot de passe ne doit contenir que des lettres, des chiffres et `. _ ~ -` : la tâche refuse tout autre caractère (avec d'autres caractères, l'adresse devrait être encodée, et le mot de passe pourrait apparaître en partie dans les journaux publics). S'il en contient d'autres : *Project Settings › Database › Reset database password*, générez un mot de passe fait seulement de lettres et de chiffres, et remplacez l'ancien dans votre gestionnaire. L'application n'utilise pas ce mot de passe : elle n'est pas touchée.
 
@@ -295,7 +295,7 @@ Sur GitHub, dans le dépôt : *Settings › Secrets and variables › Actions*, 
 
 | Nom | Valeur |
 |---|---|
-| `SAUVEGARDE_URL_BASE_PROD` | L'adresse *Session pooler* de l'étape 2, collée depuis Supabase, où vous remplacez `[YOUR-PASSWORD]` (crochets compris) par le mot de passe de la base prod, copié depuis le gestionnaire. |
+| `SAUVEGARDE_URL_BASE_PROD` | L'adresse *Session pooler* de l'étape 2, collée depuis Supabase, où vous remplacez `[YOUR-DATABASE-PASSWORD]`, **crochets compris**, par le mot de passe de la base prod, copié depuis le gestionnaire. Résultat attendu : `postgresql://postgres.<identifiant prod>:MotDePasseDeLaBase@aws-….pooler.supabase.com:5432/postgres`, sans `[`, sans `]` ni espace. |
 | `SAUVEGARDE_MOT_DE_PASSE` | Le mot de passe de chiffrement de l'étape 1, copié depuis le gestionnaire. |
 
 GitHub ne réaffiche jamais un secret : pour le corriger, *Update* et collez la nouvelle valeur. Dans les journaux d'exécution, GitHub remplace les secrets par `***` ; la tâche masque aussi le mot de passe de la base contenu dans l'adresse.
@@ -313,7 +313,8 @@ Messages possibles :
 | Message | Ce qu'il faut faire |
 |---|---|
 | « Le secret … est vide ou absent… » | Créez ce secret (étape 3), avec exactement ce nom, puis relancez. Rien n'a été exporté. |
-| « …n'a pas la forme attendue… » ou « …ne contient pas le mot de passe de la base… » | Recollez l'adresse *Session pooler* (étape 2) et remplacez bien `[YOUR-PASSWORD]`, crochets compris. |
+| « …n'a pas la forme attendue… » ou « …ne contient pas le mot de passe de la base… » | Recollez l'adresse *Session pooler* (étape 2) et remplacez bien `[YOUR-DATABASE-PASSWORD]`, crochets compris. |
+| « …est encore entouré de crochets [ ]… » | Les crochets de `[YOUR-DATABASE-PASSWORD]` sont restés autour du mot de passe : mettez à jour `SAUVEGARDE_URL_BASE_PROD` en gardant seulement le mot de passe, entre `:` et `@` (étape 3). |
 | « …n'est pas celle du « Session pooler »… » | Vous avez pris la connexion directe (`db.….supabase.co`) ou le port `6543` : reprenez l'adresse *Session pooler*, port `5432` (étape 2). |
 | « …SAUVEGARDE_MOT_DE_PASSE est trop court… » | Générez un mot de passe de 40 caractères (étape 1), rangez-le dans le gestionnaire, puis mettez à jour le secret. |
 | « L'export … a échoué. » | Le message au-dessus vient de la Supabase CLI. Souvent : mot de passe de la base faux dans l'adresse (*password authentication failed*), ou projet prod en pause dans Supabase. Corrigez, puis relancez. |

@@ -43,6 +43,16 @@ import { vi } from "vitest";
 //   personne connectée, à l'heure de l'horloge simulée) ; `modifiee_par`
 //   = auteur et date du dernier événement `statut` si le statut réel n'est
 //   pas celui vu. `lire_demande` renvoie ensuite la demande modifiée.
+// - Saisie interne (story 2.3) : `saisir_demande` et
+//   `lire_formulaire_saisie` par le client de session, avec les règles de
+//   la migration : refus `NV201` ; numéro d'envoi absent (refus imprévu
+//   `P0001`) ; même numéro d'envoi → la référence de la demande déjà créée,
+//   avant toute vérification ; `NV401` (canal autre que `telephone` ou
+//   `email`), `NV001` (case non cochée), `NV002` (catégorie inconnue ou
+//   désactivée) ; sinon la demande *Nouvelle* / *Normale* (numéro suivant
+//   de l'année 2026, à l'heure de l'horloge simulée) et son événement
+//   `creation` au nom de la personne connectée. `lire_formulaire_saisie`
+//   renvoie les catégories actives (par `ordre`) et `contactDonnees`.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -112,7 +122,12 @@ export type DemandeSimulee = {
   evenements?: EvenementSimule[];
   /** Date de clôture (story 1.11) ; par défaut `null`. */
   date_cloture?: string | null;
+  /** Numéro d'envoi (story 1.4, 2.3) ; par défaut `null`. */
+  numero_envoi?: string | null;
 };
+
+/** Contact données de la migration 1.3 (valeur fictive), lu par `lire_formulaire_saisie`. */
+export const CONTACT_DONNEES_SIMULE = "donnees@nova-services.example";
 
 /**
  * Un événement de l'historique, tel que `lire_demande` le renvoie.
@@ -257,6 +272,8 @@ export function creerSimulationConnexion() {
   const demandes: DemandeSimulee[] = [];
   /** Catégories en base, lues par `lister_categories` et le filtre Catégorie. */
   const categories: CategorieSimulee[] = [];
+  /** Contact données des paramètres de Nova, lu par `lire_formulaire_saisie`. */
+  const contact = { donnees: CONTACT_DONNEES_SIMULE };
   /** Identifiant de la catégorie d'une demande (`categorie_id`, sinon d'après son nom). */
   const categorieDe = (d: DemandeSimulee) =>
     d.categorie_id ?? categories.find((c) => c.nom === d.categorie)?.id ?? null;
@@ -384,7 +401,17 @@ export function creerSimulationConnexion() {
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
       void signal;
       if (pannesRpc[nom]) return pannesRpc[nom];
-      if (!["compter_a_traiter", "lister_demandes", "lire_demande", "changer_statut", "lister_categories"].includes(nom)) {
+      if (
+        ![
+          "compter_a_traiter",
+          "lister_demandes",
+          "lire_demande",
+          "changer_statut",
+          "lister_categories",
+          "saisir_demande",
+          "lire_formulaire_saisie",
+        ].includes(nom)
+      ) {
         return { data: null, error: { code: "PGRST202", message: `fonction inconnue : ${nom}` } };
       }
       if (!utilisateurInterne()) {
@@ -397,6 +424,17 @@ export function creerSimulationConnexion() {
         return { data: demande ? detailSimule(demande) : null, error: null };
       }
       if (nom === "changer_statut") return changerStatut(parametres);
+      if (nom === "saisir_demande") return saisirDemande(parametres);
+      if (nom === "lire_formulaire_saisie") {
+        const actives = categories.filter((c) => c.active).sort((a, b) => a.ordre - b.ordre);
+        return {
+          data: {
+            categories: actives.map(({ id, nom: nomCategorie }) => ({ id, nom: nomCategorie })),
+            contact_donnees: contact.donnees,
+          },
+          error: null,
+        };
+      }
       if (nom === "lister_categories") {
         const triees = [...categories].sort((a, b) => Number(b.active) - Number(a.active) || a.ordre - b.ordre);
         return { data: triees.map(({ id, nom: nomCategorie, active }) => ({ id, nom: nomCategorie, active })), error: null };
@@ -492,6 +530,52 @@ export function creerSimulationConnexion() {
     return reponse("applique", vers);
   }
 
+  /** `saisir_demande` de la migration 2.3 (appelant déjà vérifié). */
+  function saisirDemande(p: Record<string, unknown>): RetourRpc {
+    if (typeof p.p_numero_envoi !== "string" || p.p_numero_envoi === "") {
+      return { data: null, error: { code: "P0001", message: "numéro d'envoi absent" } };
+    }
+    const deja = demandes.find((d) => d.numero_envoi === p.p_numero_envoi);
+    if (deja) return { data: [{ reference: deja.reference }], error: null };
+    if (p.p_canal !== "telephone" && p.p_canal !== "email") {
+      return { data: null, error: { code: "NV401", message: "canal refusé" } };
+    }
+    if (p.p_personne_informee !== true) {
+      return { data: null, error: { code: "NV001", message: "case non cochée" } };
+    }
+    const categorie = categories.find((c) => c.id === p.p_categorie_id && c.active);
+    if (!categorie) return { data: null, error: { code: "NV002", message: "catégorie refusée" } };
+
+    // Numéro suivant de l'année 2026 (le vrai compteur est une table).
+    const numeros = demandes
+      .map((d) => /^NOVA-2026-(\d+)$/.exec(d.reference)?.[1])
+      .filter((n): n is string => n !== undefined)
+      .map(Number);
+    const numero = Math.max(0, ...numeros) + 1;
+    const reference = `NOVA-2026-${String(numero).padStart(4, "0")}`;
+    const date = new Date(maintenant).toISOString().replace("Z", "+00:00");
+    const texte = (valeur: unknown) => (typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim() : null);
+    demandes.push({
+      id: `00000000-0000-4000-9000-${String(numero).padStart(12, "0")}`,
+      reference,
+      date_depot: date,
+      nom: String(p.p_nom),
+      email: String(p.p_email),
+      telephone: texte(p.p_telephone),
+      entreprise: texte(p.p_entreprise),
+      objet: String(p.p_objet),
+      description: String(p.p_description),
+      categorie: categorie.nom,
+      categorie_id: categorie.id,
+      statut: "nouvelle",
+      priorite: "normale",
+      canal: p.p_canal as "telephone" | "email",
+      numero_envoi: p.p_numero_envoi as string,
+      evenements: [{ type: "creation", auteur: null, auteur_nom: profils.get(session.id!)!.nom, date }],
+    });
+    return { data: [{ reference }], error: null };
+  }
+
   const createClient = vi.fn(async () => ({
     auth: { signInWithPassword, signOut, getClaims, updateUser },
     from,
@@ -517,6 +601,7 @@ export function creerSimulationConnexion() {
     demandes.length = 0;
     categories.length = 0;
     categories.push(...CATEGORIES_DEPART.map((c) => ({ ...c })));
+    contact.donnees = CONTACT_DONNEES_SIMULE;
     cookiesRecus.clear();
     cookiesPoses.clear();
     vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
@@ -550,6 +635,7 @@ export function creerSimulationConnexion() {
     rpcSession,
     demandes,
     categories,
+    contact,
     creerClientSecret,
     createClient,
     signInWithPassword,

@@ -5,7 +5,6 @@ import {
   LoaderCircle,
   MessageSquare,
   Send,
-  ShieldCheck,
   User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -19,6 +18,7 @@ import {
 } from "react";
 
 import { Champ, ChampCase } from "@/components/formulaire/champ";
+import { MentionDonnees } from "@/components/formulaire/mention-donnees";
 import { ResumeErreurs } from "@/components/formulaire/resume-erreurs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -265,16 +265,6 @@ export async function envoyerDepot({
 // Écran (sans état)
 // ---------------------------------------------------------------------------
 
-/** Email du contact données : un lien si c'en est un, sinon un simple texte. */
-function ContactDonnees({ contact }: { contact: string }) {
-  if (!FORME_EMAIL.test(contact)) return <>{contact}</>;
-  return (
-    <a href={`mailto:${contact}`} className="font-medium text-primary underline">
-      {contact}
-    </a>
-  );
-}
-
 /**
  * Encadré de panne (P1, « Erreur technique ») : le message de l'UX, avec le
  * téléphone de Nova, ou son email de contact s'il n'y a pas de téléphone.
@@ -470,19 +460,7 @@ export function VueFormulaireDepot({
         </Champ>
       </fieldset>
 
-      <p
-        data-slot="mention-donnees"
-        className="mb-4 rounded-md bg-accent-nova-soft p-3 text-caption leading-normal break-words text-text"
-      >
-        <ShieldCheck
-          aria-hidden="true"
-          className="mr-1 inline size-4 align-[-3px] text-accent-nova"
-        />
-        Vos données (nom, coordonnées et contenu de votre demande) sont utilisées
-        par Nova Services uniquement pour traiter votre demande. Elles sont
-        conservées 3 ans après sa clôture. Pour les consulter ou les faire
-        supprimer : <ContactDonnees contact={contactDonnees} />.
-      </p>
+      <MentionDonnees contactDonnees={contactDonnees} className="mb-4" />
 
       <ChampCase
         id="personneInformee"

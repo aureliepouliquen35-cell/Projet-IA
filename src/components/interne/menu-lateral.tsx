@@ -1,4 +1,4 @@
-import { Inbox } from "lucide-react";
+import { Inbox, SquarePlus } from "lucide-react";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
@@ -6,7 +6,7 @@ import { LienMenu, VueLienMenu } from "@/components/interne/lien-menu";
 import { SqueletteUtilisateur, UtilisateurConnecte } from "@/components/interne/utilisateur-connecte";
 import { Logo } from "@/components/logo";
 import { compterATraiter } from "@/server/lectures/demandes";
-import { ADRESSE_ACCUEIL_INTERNE } from "@/shared/acces";
+import { ADRESSE_ACCUEIL_INTERNE, ADRESSE_NOUVELLE_DEMANDE } from "@/shared/acces";
 import { formaterNombre } from "@/shared/constantes";
 import { MESSAGES_INTERNE } from "@/shared/messages";
 
@@ -14,14 +14,15 @@ import paquet from "../../../package.json";
 
 // Menu latéral de l'espace interne (EXPERIENCE.md, Information
 // Architecture ; DESIGN.md, Menu latéral) : logo, « Demandes » avec la
-// pastille du nombre à traiter, puis, en bas, la personne connectée (nom,
+// pastille du nombre à traiter, « Nouvelle demande » (écran I5, story 2.3 ;
+// icône « plus dans un carré »), puis, en bas, la personne connectée (nom,
 // rôle, « Se déconnecter ») et le numéro de version (NFR-4, AD-17).
+// « Demandes » n'est pas actif sur `/demandes/nouvelle`, qui a son élément.
 //
 // À partir de 1 024 px : fixe à gauche, 240 px. En dessous : bandeau en haut
 // de la page (le menu replié derrière « Menu » arrive avec la story 6.7).
 //
-// « Nouvelle demande » (story 2.3) et la section Administration (stories 3.x)
-// viendront s'ajouter ici.
+// La section Administration (stories 3.x) viendra s'ajouter ici.
 //
 // La pastille et la personne connectée lisent les cookies : elles sont sous
 // `<Suspense>` (Cache Components) ; le reste du menu s'affiche tout de suite.
@@ -76,6 +77,7 @@ export function MenuLateral() {
             >
               <LienMenu
                 href={ADRESSE_ACCUEIL_INTERNE}
+                exclusions={[ADRESSE_NOUVELLE_DEMANDE]}
                 icone={<Inbox aria-hidden="true" />}
                 fin={
                   <Suspense fallback={null}>
@@ -84,6 +86,19 @@ export function MenuLateral() {
                 }
               >
                 {MESSAGES_INTERNE.demandes}
+              </LienMenu>
+            </Suspense>
+          </li>
+          <li>
+            <Suspense
+              fallback={
+                <VueLienMenu href={ADRESSE_NOUVELLE_DEMANDE} icone={<SquarePlus aria-hidden="true" />} actif={false}>
+                  {MESSAGES_INTERNE.nouvelleDemande}
+                </VueLienMenu>
+              }
+            >
+              <LienMenu href={ADRESSE_NOUVELLE_DEMANDE} icone={<SquarePlus aria-hidden="true" />}>
+                {MESSAGES_INTERNE.nouvelleDemande}
               </LienMenu>
             </Suspense>
           </li>

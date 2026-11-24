@@ -156,6 +156,8 @@ export const MESSAGES_INTERNE = {
   deconnexionEnCours: "Déconnexion…",
   menu: "Menu principal",
   demandes: "Demandes",
+  /** Écran I5 (story 2.3). */
+  nouvelleDemande: "Nouvelle demande",
   /** Fin de la pastille, pour les lecteurs d'écran : « Demandes, 5 à traiter ». */
   pastilleATraiter: "à traiter",
   version: (version: string) => `Version v${version}`,
@@ -181,8 +183,12 @@ export const MESSAGES_LISTE = {
     categorie: "Catégorie",
     statut: "Statut",
   },
+  /** Bouton principal à côté du titre (vers I5). */
+  nouvelleDemande: "Nouvelle demande",
   videTitre: "Aucune demande pour le moment.",
   videTexte: "Les demandes déposées sur le formulaire apparaîtront ici.",
+  /** Bouton secondaire de l'état vide (vers I5). */
+  videSaisir: "Saisir une demande reçue par téléphone",
   erreur: "Impossible de charger les demandes.",
   reessayer: "Réessayer",
   pagination: "Pagination",
@@ -318,6 +324,39 @@ export const MESSAGES_STATUT = {
  */
 export function messageModifieePar(nom: string, heure: string): string {
   return `Cette demande a été modifiée par ${nom} à ${heure}. L'affichage a été mis à jour.`;
+}
+
+/**
+ * Écran I5 « Nouvelle demande » (EXPERIENCE.md, FR-30, RM-12). Les champs
+ * communs avec P1 gardent les messages de `MESSAGES_DEPOT` ; s'y ajoutent le
+ * canal et la case remplie par l'utilisateur interne. Les légendes des
+ * blocs ne s'adressent pas au demandeur (« Demandeur », « Demande »).
+ */
+export const MESSAGES_SAISIE = {
+  titre: "Nouvelle demande",
+  sousTitre: "Saisissez une demande reçue par téléphone ou par email.",
+  canal: "Canal",
+  canalObligatoire: "Le canal est obligatoire",
+  /** Appel direct avec un canal autre que Téléphone ou Email (*Formulaire* compris). */
+  canalInconnu: "Le canal doit être Téléphone ou Email",
+  blocDemandeur: "Demandeur",
+  blocDemande: "Demande",
+  caseEtiquette: "La personne a été informée de l'usage de ses données.",
+  caseObligatoire: "Confirmez que la personne a été informée de l'usage de ses données",
+  /** Lien qui déplie la mention de P1, à lire à la personne. */
+  texteALire: "Texte à lui lire",
+  enregistrer: "Enregistrer la demande",
+  enregistrementEnCours: "Enregistrement…",
+  /** Encadré de panne : rien n'est perdu, le même envoi peut être relancé. */
+  panne: "La demande n'a pas pu être enregistrée. Réessayez.",
+  /** Numéro d'envoi absent ou mal formé : seul un appel direct peut l'envoyer. */
+  formulaireIncomplet: "Le formulaire est incomplet. Rechargez la page.",
+  chargement: "Chargement du formulaire…",
+} as const;
+
+/** Toast après l'enregistrement d'une saisie (I5) : « Demande NOVA-2026-0043 créée ». */
+export function messageDemandeCreee(reference: string): string {
+  return `Demande ${reference} créée`;
 }
 
 /** Bouton qui ferme un toast d'erreur (ceux-ci restent jusqu'à fermeture). */

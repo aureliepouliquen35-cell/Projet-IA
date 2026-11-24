@@ -197,10 +197,10 @@ describe("résultats", () => {
 });
 
 describe("autres états", () => {
-  it("base vide, sans q : message « Aucune demande pour le moment… » (inchangé)", async () => {
+  it("base vide, sans q : message « Aucune demande pour le moment… » et le bouton de saisie (story 2.3)", async () => {
     const html = await ecran();
     expect(texteDe(sansFiltres(html))).toBe(
-      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici.",
+      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
     );
     expect(annonce(html)).toBe("");
   });

@@ -100,7 +100,7 @@ describe("accueil : 5 Nouvelle sur 42", () => {
     expect(html).not.toMatch(/@|mailto:|tel:/);
   });
 
-  it("filtres sans « Réinitialiser » tant qu'aucun n'est actif ; pas de « Nouvelle demande »", async () => {
+  it("filtres sans « Réinitialiser » tant qu'aucun n'est actif ; « Nouvelle demande » est dans la coque, pas ici", async () => {
     const html = await ecran();
     expect(texteDe(html)).toContain("Filtres Statut : Tous");
     expect(texteDe(html)).not.toMatch(/Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour|Priorité|Attribution|Sans activité/);
@@ -150,11 +150,12 @@ describe("autres situations", () => {
     expect(bouton(html, "Suivante")).toMatch(/^<button[^>]*disabled/);
   });
 
-  it("base vide : « 0 à traiter » et le message vide à la place du tableau", async () => {
+  it("base vide : « 0 à traiter » et le message vide à la place du tableau, avec « Saisir une demande reçue par téléphone »", async () => {
     const html = await ecran();
     expect(texteDe(sansFiltres(html))).toBe(
-      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici.",
+      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
     );
+    expect(html).toMatch(/<a[^>]*href="\/demandes\/nouvelle"[^>]*>Saisir une demande reçue par téléphone<\/a>/);
     expect(html).not.toContain("<table");
     expect(html).not.toContain("Pagination");
   });

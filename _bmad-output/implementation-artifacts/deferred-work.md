@@ -71,3 +71,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-13-sauvegarder-production-chaque-nuit.md`
   summary: Exécuter dans un test la requête SQL de `scripts/sauvegarde/sauvegarder.sh noter` (appel de `ecrire_journal` avec les variables psql) sur une vraie base Postgres portant la migration du journal.
   evidence: Relecture 1.13 : le faux `psql` des tests note seulement le texte envoyé ; une erreur de conversion ou de variable ne se verrait qu'au premier lancement réel (croix rouge sur l'étape « Noter »). Non vérifié faute de banc Postgres dans le dépôt ; le premier lancement à la main de la tâche le tranchera.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-saisir-demande-telephone-email.md`
+  summary: Exécuter vraiment les fonctions SQL (refus NV001/NV002/NV401 et rejeu du numéro d'envoi de `saisir_demande`, comme celles des stories précédentes) dans les tests automatiques, et non plus seulement leur texte.
+  evidence: `npm test` ne lit que le texte des migrations et une simulation qui recode les règles ; seul le parcours e2e manuel sur dev appelle la vraie base. Il faudrait un banc de base de données (Postgres local ou équivalent).

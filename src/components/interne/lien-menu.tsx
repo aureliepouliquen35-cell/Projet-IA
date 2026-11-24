@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { commencePar } from "@/shared/acces";
 
 // Élément du menu latéral (DESIGN.md, Menu latéral). Actif quand l'adresse
-// est la sienne ou une de ses sous-pages (`/demandes/NOVA-2026-0042`) :
+// est la sienne ou une de ses sous-pages (`/demandes/NOVA-2026-0042`), sauf
+// celles qui ont leur propre élément (`/demandes/nouvelle`) :
 // fond bleu très clair, icône violette, barre violette de 3 px à gauche, et
 // `aria-current="page"` pour les lecteurs d'écran.
 //
@@ -16,10 +18,14 @@ import { cn } from "@/lib/utils";
 // attend la requête. `LienMenu` est donc placé sous `<Suspense>` par le menu,
 // avec `VueLienMenu` inactif en attendant (doc Next.js, `usePathname`).
 
-/** Vrai si `chemin` est `adresse`, seule ou suivie de `/…`. */
-export function estActif(chemin: string | null, adresse: string): boolean {
+/**
+ * Vrai si `chemin` est `adresse`, seule ou suivie de `/…`, sans être une
+ * des `exclusions` (sous-pages qui ont leur propre élément du menu :
+ * `/demandes/nouvelle` n'active pas « Demandes »).
+ */
+export function estActif(chemin: string | null, adresse: string, exclusions: readonly string[] = []): boolean {
   if (!chemin) return false;
-  return chemin === adresse || chemin.startsWith(`${adresse}/`);
+  return commencePar(chemin, adresse) && !exclusions.some((exclue) => commencePar(chemin, exclue));
 }
 
 type ProprietesLienMenu = {
@@ -33,8 +39,14 @@ type ProprietesLienMenu = {
 };
 
 /** L'élément du menu, actif selon l'adresse en cours. */
-export function LienMenu(proprietes: ProprietesLienMenu) {
-  return <VueLienMenu {...proprietes} actif={estActif(usePathname(), proprietes.href)} />;
+export function LienMenu({
+  exclusions,
+  ...proprietes
+}: ProprietesLienMenu & {
+  /** Sous-pages qui n'activent pas cet élément (elles ont le leur). */
+  exclusions?: readonly string[];
+}) {
+  return <VueLienMenu {...proprietes} actif={estActif(usePathname(), proprietes.href, exclusions)} />;
 }
 
 /** L'élément du menu, actif ou non, sans lire l'adresse. */

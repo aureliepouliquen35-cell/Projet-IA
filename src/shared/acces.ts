@@ -14,6 +14,9 @@ export const ADRESSE_NOUVEAU_MOT_DE_PASSE = "/connexion/nouveau-mot-de-passe";
 /** Page d'arrivée après la connexion : « Demandes » (I3). */
 export const ADRESSE_ACCUEIL_INTERNE = "/demandes";
 
+/** Écran I5 « Nouvelle demande » (saisie interne, FR-30). */
+export const ADRESSE_NOUVELLE_DEMANDE = "/demandes/nouvelle";
+
 /**
  * Débuts d'adresse des pages internes. Seules ces pages demandent une
  * session : les pages publiques (`/`, `/confirmation`) et les adresses
@@ -36,7 +39,7 @@ function normaliser(chemin: string): string {
 }
 
 /** Vrai si `chemin` est `adresse`, seule ou suivie de `/…`. */
-const commencePar = (chemin: string, adresse: string) =>
+export const commencePar = (chemin: string, adresse: string) =>
   chemin === adresse || chemin.startsWith(`${adresse}/`);
 
 /**

@@ -28,6 +28,15 @@ export const LIBELLES_EVENEMENTS: Record<TypeEvenement, string> = {
   statut: "Statut",
 };
 
+/**
+ * Création d'une demande saisie par un utilisateur interne (FR-30) :
+ * « Demande créée (canal : Téléphone) ». Son nom suit, comme pour toute
+ * ligne de l'historique (décision d'Aurel, 24 nov. 2026).
+ */
+export function libelleCreationSaisie(canal: Canal): string {
+  return `${LIBELLES_EVENEMENTS.creation} (canal : ${LIBELLES_CANAUX[canal]})`;
+}
+
 /** « Statut : Nouvelle → En cours » (DESIGN.md, Historique ; FR-16). */
 export function libelleChangementStatut(ancien: Statut, nouveau: Statut): string {
   return `${LIBELLES_EVENEMENTS.statut} : ${LIBELLES_STATUTS[ancien]} → ${LIBELLES_STATUTS[nouveau]}`;

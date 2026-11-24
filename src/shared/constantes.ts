@@ -86,6 +86,15 @@ export const CANAUX = ["formulaire", "telephone", "email"] as const;
 export type Canal = (typeof CANAUX)[number];
 
 /**
+ * Canaux qu'un utilisateur interne peut choisir en saisissant une demande
+ * (écran I5, FR-30), dans l'ordre de l'écran : *Formulaire* est réservé au
+ * dépôt public. La base fait foi (`saisir_demande`, refus NV401) ; un test
+ * vérifie qu'elle dit la même chose.
+ */
+export const CANAUX_SAISIE = ["telephone", "email"] as const satisfies readonly Canal[];
+export type CanalSaisie = (typeof CANAUX_SAISIE)[number];
+
+/**
  * Passages de statut permis (FR-16, RM-4), depuis chaque statut. Jamais de
  * retour à *Nouvelle*. La base fait foi (`transition_statut_permise`, appelée
  * par `changer_statut`) ; cette constante ne sert qu'à afficher les boutons

@@ -58,9 +58,11 @@ describe("menu latéral", () => {
     expect(texteDe(html)).toContain("Version v0.1.0");
   });
 
-  it("pas de « Nouvelle demande » ni de section Administration (stories 2.3, 3.x)", () => {
+  it("« Nouvelle demande » (story 2.3, icône plus dans un carré) après « Demandes » ; pas de section Administration (stories 3.x)", () => {
     const html = renderToStaticMarkup(<MenuLateral />);
-    expect(texteDe(html)).not.toMatch(/Nouvelle demande|Administration|Comptes|Catégories/);
+    expect(html).toMatch(/<a[^>]*href="\/demandes\/nouvelle"[^>]*>.*lucide-square-plus.*Nouvelle demande<\/span><\/a>/);
+    expect(html.indexOf('href="/demandes"')).toBeLessThan(html.indexOf('href="/demandes/nouvelle"'));
+    expect(texteDe(html)).not.toMatch(/Administration|Comptes|Catégories/);
   });
 
   it("fixe à gauche (240 px) à partir de 1 024 px, bandeau en haut en dessous", () => {

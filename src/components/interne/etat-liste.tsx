@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { BoutonReessayer } from "@/components/interne/bouton-reessayer";
 import { Button } from "@/components/ui/button";
+import { ADRESSE_NOUVELLE_DEMANDE } from "@/shared/acces";
 import { adresseListe } from "@/shared/adresse-liste";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
@@ -13,7 +14,10 @@ import { MESSAGES_LISTE } from "@/shared/messages";
 const CADRE = "flex flex-col items-center rounded-lg border bg-background px-5 py-7 text-center shadow-soft";
 const PASTILLE = "mb-3 flex size-11 items-center justify-center rounded-full";
 
-/** Aucune demande en base. « Saisir une demande reçue par téléphone » arrive avec la story 2.3. */
+/**
+ * Aucune demande en base : la phrase de l'UX, et le bouton secondaire
+ * « Saisir une demande reçue par téléphone » vers l'écran I5 (story 2.3).
+ */
 export function EtatListeVide() {
   return (
     <div data-slot="liste-vide" className={CADRE}>
@@ -21,7 +25,10 @@ export function EtatListeVide() {
         <Inbox />
       </span>
       <p className="text-body font-semibold text-text">{MESSAGES_LISTE.videTitre}</p>
-      <p className="mt-1 text-body-sm text-text-muted">{MESSAGES_LISTE.videTexte}</p>
+      <p className="mt-1 mb-4 text-body-sm text-text-muted">{MESSAGES_LISTE.videTexte}</p>
+      <Button asChild variant="secondaire">
+        <Link href={ADRESSE_NOUVELLE_DEMANDE}>{MESSAGES_LISTE.videSaisir}</Link>
+      </Button>
     </div>
   );
 }

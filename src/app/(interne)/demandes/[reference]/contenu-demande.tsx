@@ -179,7 +179,7 @@ export async function ContenuDemande({
           </div>
 
           <Bloc icone={<Clock />} titre={MESSAGES_DETAIL.blocHistorique}>
-            <HistoriqueDemande evenements={demande.evenements} />
+            <HistoriqueDemande evenements={demande.evenements} canal={demande.canal} />
           </Bloc>
         </div>
       </div>

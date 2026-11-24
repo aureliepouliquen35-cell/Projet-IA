@@ -18,6 +18,12 @@ export const ADRESSE_ACCUEIL_INTERNE = "/demandes";
 export const ADRESSE_NOUVELLE_DEMANDE = "/demandes/nouvelle";
 
 /**
+ * Écran A1 « Comptes » (story 3.1), réservé aux administrateurs (FR-24,
+ * RM-7). `/admin` seul n'est pas une page : S2, comme toute adresse inconnue.
+ */
+export const ADRESSE_COMPTES = "/admin/comptes";
+
+/**
  * Débuts d'adresse des pages internes. Seules ces pages demandent une
  * session : les pages publiques (`/`, `/confirmation`) et les adresses
  * inconnues (S2, comme `/inscription`) n'en ont pas besoin.

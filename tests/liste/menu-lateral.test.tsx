@@ -57,7 +57,7 @@ describe("menu latéral", () => {
     expect(texteDe(html)).toContain(`Version v${paquet.version}`);
   });
 
-  it("« Nouvelle demande » (story 2.3, icône plus dans un carré) après « Demandes » ; pas de section Administration (stories 3.x)", () => {
+  it("« Nouvelle demande » (story 2.3, icône plus dans un carré) après « Demandes » ; section Administration absente de la coque (rendue sous <Suspense> pour les seuls administrateurs, story 3.1)", () => {
     const html = renderToStaticMarkup(<MenuLateral />);
     expect(html).toMatch(/<a[^>]*href="\/demandes\/nouvelle"[^>]*>.*lucide-square-plus.*Nouvelle demande<\/span><\/a>/);
     expect(html.indexOf('href="/demandes"')).toBeLessThan(html.indexOf('href="/demandes/nouvelle"'));

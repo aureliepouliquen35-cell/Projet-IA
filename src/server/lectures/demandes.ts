@@ -105,7 +105,7 @@ export function reponseInattendue(fonction: string, erreur: z.ZodError): Error {
  * donne `{ ok: false }`. Les erreurs internes de Next.js (renvoi, rendu
  * différé) sont relancées.
  */
-async function lire<T>(lecture: string, fn: () => Promise<T>): Promise<ResultatLecture<T>> {
+export async function lire<T>(lecture: string, fn: () => Promise<T>): Promise<ResultatLecture<T>> {
   try {
     return { ok: true, donnees: await fn() };
   } catch (erreur) {

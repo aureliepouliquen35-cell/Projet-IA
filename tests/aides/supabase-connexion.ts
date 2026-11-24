@@ -54,6 +54,12 @@ import { vi } from "vitest";
 //   de l'année 2026, à l'heure de l'horloge simulée) et son événement
 //   `creation` au nom de la personne connectée. `lire_formulaire_saisie`
 //   renvoie les catégories actives (par `ordre`) et `contactDonnees`.
+// - Comptes de l'écran A1 (story 3.1) : `lister_comptes` par le client de
+//   session, avec les règles de la migration : refus `NV202` sauf pour le
+//   profil actif, au mot de passe choisi et au rôle `administrateur` de la
+//   session ; sinon tous les profils, désactivés compris, triés par nom
+//   (sans accents ni majuscules) puis par email. L'email est `email` du
+//   profil, sinon celui de son compte Auth (`comptes`).
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -78,6 +84,8 @@ export type ProfilSimule = {
   role: string;
   actif: boolean;
   doit_changer_mdp: boolean;
+  /** Lu par `lister_comptes` (story 3.1) ; par défaut, l'email du compte Auth. */
+  email?: string;
 };
 
 /** Secret des cookies signés, pour les tests. */
@@ -89,6 +97,19 @@ export const PROFIL_KARIM: ProfilSimule = {
   role: "collaborateur",
   actif: true,
   doit_changer_mdp: false,
+};
+
+/** Administratrice de test (story 3.1), absente tant que le test ne l'ajoute pas à `profils`. */
+export const ID_SOPHIE = "5d1e2f3a-4b5c-4d6e-8f70-819203a4b5c6";
+export const EMAIL_SOPHIE = "sophie.martin@nova-services.example";
+
+export const PROFIL_SOPHIE: ProfilSimule = {
+  id: ID_SOPHIE,
+  nom: "Sophie Martin",
+  role: "administrateur",
+  actif: true,
+  doit_changer_mdp: false,
+  email: EMAIL_SOPHIE,
 };
 
 type Tentative = { email: string; date: number; reussite: boolean };
@@ -397,11 +418,34 @@ export function creerSimulationConnexion() {
     return profil?.actif === true && profil.doit_changer_mdp === false;
   }
 
+  /** Faux (refus NV202) sauf pour l'administrateur actif, au mot de passe choisi, de la session. */
+  function administrateur(): boolean {
+    return utilisateurInterne() && profils.get(session.id!)?.role === "administrateur";
+  }
+
+  /** `lister_comptes` de la migration 3.1 : tous les profils, triés par nom puis email. */
+  function listerComptes(): RetourRpc {
+    if (!administrateur()) return { data: null, error: { code: "NV202", message: "Accès refusé" } };
+    const emailDe = (p: ProfilSimule) => p.email ?? [...comptes].find(([, c]) => c.id === p.id)?.[0] ?? "";
+    const comparer = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+    const lignes = [...profils.values()]
+      .map((p) => ({ id: p.id, nom: p.nom, email: emailDe(p), role: p.role, actif: p.actif }))
+      .sort(
+        (a, b) =>
+          comparer(normaliserRecherche(a.nom), normaliserRecherche(b.nom)) ||
+          comparer(a.nom, b.nom) ||
+          comparer(a.email.toLowerCase(), b.email.toLowerCase()),
+      );
+    return { data: lignes, error: null };
+  }
+
   /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
   const rpcSession = vi.fn((nom: string, parametres: Record<string, unknown> = {}) => ({
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
       void signal;
       if (pannesRpc[nom]) return pannesRpc[nom];
+      // Appelant vérifié par `exiger_administrateur` (NV202), pas NV201.
+      if (nom === "lister_comptes") return listerComptes();
       if (
         ![
           "compter_a_traiter",

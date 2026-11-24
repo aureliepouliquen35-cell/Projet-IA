@@ -7,7 +7,8 @@ import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
-// « Réessayer » de l'état d'erreur de la liste (EXPERIENCE.md, I3) : relit
+// « Réessayer » des états d'erreur de la liste des demandes (EXPERIENCE.md,
+// I3) et des comptes (A1) : même texte, `MESSAGES_LISTE.reessayer`. Relit
 // la page sur le serveur (`router.refresh()`), sans recharger le navigateur.
 // Indicateur sur le bouton pendant la relecture.
 

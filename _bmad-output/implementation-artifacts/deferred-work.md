@@ -78,3 +78,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-retrouver-autres-demandes-demandeur.md`
   summary: « Voir ses autres demandes » montre aussi les demandes dont l'email (ou le nom, l'entreprise, l'objet) contient celui du demandeur (`anne@x.fr` trouve `marianne@x.fr`) ; une recherche sur l'email exact demanderait un nouveau paramètre d'adresse.
   evidence: la recherche FR-12 cherche un texte contenu (`strpos`) ; l'adresse de la liste a des paramètres fixes (architecture), d'où le report ; test « limite connue » dans `tests/regles/fr-12-recherche.test.ts`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-1-reserver-administration-administrateurs.md`
+  summary: Le côté administrateur de la section Administration (menu et tableau des comptes) n'a pas de test automatique de bout en bout ; il faudrait un compte administrateur de test sur dev, lu dans `.env.local` (variables séparées, test ignoré si elles manquent).
+  evidence: `MenuLateral` rendu sans navigateur n'affiche que le repli `null` de `<Suspense>` ; `tests/e2e/administration.spec.ts` ne couvre que le collaborateur ; le critère 1 n'est vérifié qu'à l'écran.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-1-reserver-administration-administrateurs.md`
+  summary: Story 3.3 — la section Administration du menu est dans le layout, qui n'est pas relu à la navigation : un administrateur rétrogradé la garde jusqu'au prochain rafraîchissement (la page A1, elle, affiche S1) ; FR-22 demande qu'elle disparaisse à sa prochaine action.
+  evidence: commentaire de `src/components/interne/menu-lateral.tsx` (« Le menu n'est pas relu quand on passe d'une page… ») ; relevé par deux relecteurs de la 3.1.

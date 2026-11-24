@@ -14,7 +14,8 @@ import { ROLES, type Role } from "@/shared/constantes";
 
 // Garde d'accès de l'espace interne (AD-7). Chaque page interne et chaque
 // Server Function interne commence par `exigerUtilisateur()` ; l'écran I2 et
-// sa Server Function, par `exigerChangementMotDePasse()`.
+// sa Server Function, par `exigerChangementMotDePasse()` ; chaque page,
+// lecture et Server Function d'administration, par `exigerAdministrateur()`.
 //
 // La session vient des cookies (vérifiée par `getClaims`) ; le nom, le rôle,
 // l'état du compte et « doit changer son mot de passe » sont **relus dans
@@ -90,6 +91,22 @@ export async function exigerUtilisateur(): Promise<UtilisateurConnecte> {
   if (!utilisateur) redirect(ADRESSE_CONNEXION);
   if (utilisateur.doitChangerMdp) redirect(ADRESSE_NOUVEAU_MOT_DE_PASSE);
   return utilisateur;
+}
+
+/**
+ * La personne connectée si elle est administrateur, sinon `null` (FR-24,
+ * RM-7). Commence par `exigerUtilisateur()` : sans session ou avec un compte
+ * inactif, renvoi vers la connexion ; mot de passe à choisir, renvoi vers
+ * I2. Le rôle est celui relu dans `profils` pour cette requête (AD-7) : un
+ * administrateur rétrogradé perd ses droits à sa prochaine action.
+ *
+ * À appeler en premier dans chaque page, lecture et Server Function
+ * d'administration. `null` n'est pas une panne : la page affiche S1 et une
+ * action répond `ACCES_REFUSE`.
+ */
+export async function exigerAdministrateur(): Promise<UtilisateurConnecte | null> {
+  const utilisateur = await exigerUtilisateur();
+  return utilisateur.role === "administrateur" ? utilisateur : null;
 }
 
 /**

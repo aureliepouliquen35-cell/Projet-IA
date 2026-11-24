@@ -160,7 +160,45 @@ export const MESSAGES_INTERNE = {
   nouvelleDemande: "Nouvelle demande",
   /** Fin de la pastille, pour les lecteurs d'écran : « Demandes, 5 à traiter ». */
   pastilleATraiter: "à traiter",
+  /** Titre de la section du menu réservée aux administrateurs (story 3.1). */
+  administration: "Administration",
+  /** Écran A1 (story 3.1). */
+  comptes: "Comptes",
   version: (version: string) => `Version v${version}`,
+} as const;
+
+/**
+ * Écran A1 « Comptes » (EXPERIENCE.md, FR-24). Pas d'état vide :
+ * l'administrateur connecté a toujours son compte. Les libellés des rôles
+ * viennent de `LIBELLES_ROLES`.
+ */
+export const MESSAGES_COMPTES = {
+  titre: "Comptes",
+  legendeTableau: "Comptes internes, triés par nom",
+  colonnes: {
+    nom: "Nom",
+    email: "Email",
+    role: "Rôle",
+    etat: "État",
+  },
+  actif: "Actif",
+  /** Badge gris, toujours écrit en toutes lettres. */
+  desactive: "Désactivé",
+  /** État d'erreur, suivi de « Réessayer » (`BoutonReessayer`, texte de `MESSAGES_LISTE`). */
+  erreur: "Impossible de charger les comptes.",
+  chargement: "Chargement…",
+} as const;
+
+/**
+ * Titre d'onglet neutre des pages d'administration : il ne dit rien de la
+ * page à un collaborateur refusé (S1).
+ */
+export const TITRE_ONGLET_ADMINISTRATION = "Administration — Nova Services";
+
+/** S1 — Accès refusé (EXPERIENCE.md, FR-24, RM-7). */
+export const MESSAGES_ACCES_REFUSE = {
+  message: "Accès refusé. Cette page est réservée aux administrateurs.",
+  retourAuxDemandes: "Retour aux demandes",
 } as const;
 
 /**

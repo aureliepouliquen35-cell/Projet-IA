@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { LienMenu, VueLienMenu } from "@/components/interne/lien-menu";
+import { SectionAdministration } from "@/components/interne/section-administration";
 import { SqueletteUtilisateur, UtilisateurConnecte } from "@/components/interne/utilisateur-connecte";
 import { Logo } from "@/components/logo";
 import { compterATraiter } from "@/server/lectures/demandes";
@@ -22,12 +23,15 @@ import paquet from "../../../package.json";
 // À partir de 1 024 px : fixe à gauche, 240 px. En dessous : bandeau en haut
 // de la page (le menu replié derrière « Menu » arrive avec la story 6.7).
 //
-// La section Administration (stories 3.x) viendra s'ajouter ici.
+// Puis la section « Administration » › « Comptes » (story 3.1), pour les
+// seuls administrateurs (`SectionAdministration`) : un collaborateur n'en
+// voit rien, ni titre, ni lien (FR-24, RM-7).
 //
-// La pastille et la personne connectée lisent les cookies : elles sont sous
-// `<Suspense>` (Cache Components) ; le reste du menu s'affiche tout de suite.
-// Le menu n'est pas relu quand on passe d'une page de la liste à l'autre :
-// la pastille est juste au plus tard au rafraîchissement (FR-14).
+// La pastille, la section Administration et la personne connectée lisent
+// les cookies : elles sont sous `<Suspense>` (Cache Components) ; le reste
+// du menu s'affiche tout de suite. Le menu n'est pas relu quand on passe
+// d'une page interne à l'autre : la pastille et la section Administration
+// sont justes au plus tard au rafraîchissement (FR-14).
 //
 // L'élément actif dépend de l'adresse, inconnue d'avance sous le détail
 // d'une demande (`/demandes/[reference]`) : il est sous `<Suspense>`, avec le
@@ -65,7 +69,7 @@ export function MenuLateral() {
         <Logo />
       </div>
 
-      <nav aria-label={MESSAGES_INTERNE.menu} className="lg:flex-1">
+      <nav aria-label={MESSAGES_INTERNE.menu} className="flex flex-wrap items-center gap-1 lg:block lg:flex-1">
         <ul className="flex gap-1 lg:flex-col">
           <li>
             <Suspense
@@ -103,6 +107,9 @@ export function MenuLateral() {
             </Suspense>
           </li>
         </ul>
+        <Suspense fallback={null}>
+          <SectionAdministration />
+        </Suspense>
       </nav>
 
       <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2 lg:ml-0 lg:flex-col lg:items-stretch lg:gap-3 lg:border-t lg:px-2 lg:pt-4">

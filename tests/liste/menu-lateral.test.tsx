@@ -55,7 +55,6 @@ describe("menu latéral", () => {
     expect(html).toMatch(/<a[^>]*href="\/demandes"/);
     expect(VERSION).toBe(paquet.version);
     expect(texteDe(html)).toContain(`Version v${paquet.version}`);
-    expect(texteDe(html)).toContain("Version v0.1.0");
   });
 
   it("« Nouvelle demande » (story 2.3, icône plus dans un carré) après « Demandes » ; pas de section Administration (stories 3.x)", () => {

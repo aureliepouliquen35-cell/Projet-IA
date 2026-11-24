@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { adresseListe, lireRecherche, LONGUEUR_MAXIMALE_RECHERCHE } from "@/shared/adresse-liste";
+import {
+  adresseDetail,
+  adresseListe,
+  filtreActif,
+  lireFiltres,
+  lireRecherche,
+  LONGUEUR_MAXIMALE_RECHERCHE,
+} from "@/shared/adresse-liste";
 import { LONGUEURS_MAXIMALES } from "@/shared/constantes";
 import { MESSAGES_LISTE, nombreDemandes } from "@/shared/messages";
 
@@ -89,5 +96,88 @@ describe("textes (EXPERIENCE.md, I3)", () => {
     expect(MESSAGES_LISTE.rechercheVideTitre).toBe("Aucune demande trouvée");
     expect(MESSAGES_LISTE.rechercheVideTexte).toBe("Vérifiez l'orthographe ou retirez des filtres.");
     expect(MESSAGES_LISTE.reinitialiser).toBe("Réinitialiser");
+  });
+});
+
+// Filtres (story 2.1 ; FR-13, convention « Adresse de la liste ») : lecture
+// de `?statut=`, `?categorie=`, `?canal=`, ordre des paramètres, filtre
+// actif.
+
+const CATEGORIE = "c0000000-0000-4000-8000-000000000002";
+
+describe("lireFiltres (?statut=, ?categorie=, ?canal=)", () => {
+  it("valeurs permises : gardées", () => {
+    expect(lireFiltres({ statut: "nouvelle", categorie: CATEGORIE, canal: "telephone" })).toEqual({
+      statut: "nouvelle",
+      categorie: CATEGORIE,
+      canal: "telephone",
+    });
+    for (const statut of ["nouvelle", "en_cours", "traitee"]) expect(lireFiltres({ statut })).toEqual({ statut });
+    for (const canal of ["formulaire", "telephone", "email"]) expect(lireFiltres({ canal })).toEqual({ canal });
+  });
+
+  it.each([
+    [{}],
+    [{ statut: "" }],
+    [{ statut: "abc" }],
+    [{ statut: "Nouvelle" }],
+    [{ statut: "nouvelle " }],
+    [{ canal: "fax" }],
+    [{ canal: "EMAIL" }],
+    [{ categorie: "pas-un-uuid" }],
+    [{ categorie: `${CATEGORIE}x` }],
+    [{ categorie: "' or 1=1 --" }],
+    [{ statut: [], canal: undefined, categorie: null }],
+  ])("valeur absente, vide ou inconnue (%j) : ignorée", (parametres) => {
+    expect(lireFiltres(parametres as Record<string, string | string[] | null | undefined>)).toEqual({});
+  });
+
+  it("en double : la première ; identifiant en majuscules : écrit en minuscules", () => {
+    expect(lireFiltres({ statut: ["traitee", "nouvelle"], canal: ["fax", "email"] })).toEqual({ statut: "traitee" });
+    expect(lireFiltres({ categorie: CATEGORIE.toUpperCase() })).toEqual({ categorie: CATEGORIE });
+  });
+
+  it("filtreActif : un filtre valide ; la recherche et la page ne comptent pas", () => {
+    expect(filtreActif({})).toBe(false);
+    expect(filtreActif({ q: "helene", page: 3 })).toBe(false);
+    expect(filtreActif({ statut: "nouvelle" })).toBe(true);
+    expect(filtreActif({ categorie: CATEGORIE })).toBe(true);
+    expect(filtreActif({ canal: "email" })).toBe(true);
+    expect(filtreActif({ canal: "fax" as "email" })).toBe(false);
+  });
+});
+
+describe("adresseListe et adresseDetail avec les filtres", () => {
+  it("ordre fixe : q, statut, categorie, canal, page", () => {
+    expect(adresseListe({ page: 2, canal: "email", categorie: CATEGORIE, statut: "en_cours", q: "imprimante" })).toBe(
+      `/demandes?q=imprimante&statut=en_cours&categorie=${CATEGORIE}&canal=email&page=2`,
+    );
+    expect(adresseDetail("NOVA-2026-0042", { q: "x", statut: "nouvelle", page: 2 })).toBe(
+      "/demandes/NOVA-2026-0042?q=x&statut=nouvelle&page=2",
+    );
+  });
+
+  it.each([
+    [{ canal: "telephone" }, "/demandes?canal=telephone"],
+    [{ statut: "traitee", page: 1 }, "/demandes?statut=traitee"],
+    [{ statut: "abc" }, "/demandes"],
+    [{ categorie: "pas-un-uuid", canal: "fax" }, "/demandes"],
+  ] as const)("%j → %s (valeur invalide jamais écrite)", (etat, attendue) => {
+    expect(adresseListe(etat as never)).toBe(attendue);
+  });
+
+  it("se relit tel quel depuis l'adresse", () => {
+    const adresse = new URL(adresseListe({ q: "a", statut: "nouvelle", categorie: CATEGORIE, canal: "email" }), "https://nova.example");
+    expect(lireFiltres(Object.fromEntries(adresse.searchParams))).toEqual({ statut: "nouvelle", categorie: CATEGORIE, canal: "email" });
+  });
+
+  it("textes des filtres (EXPERIENCE.md, I3)", () => {
+    expect([MESSAGES_LISTE.filtres, MESSAGES_LISTE.filtreStatut, MESSAGES_LISTE.filtreCategorie, MESSAGES_LISTE.filtreCanal]).toEqual([
+      "Filtres",
+      "Statut",
+      "Catégorie",
+      "Canal",
+    ]);
+    expect([MESSAGES_LISTE.tous, MESSAGES_LISTE.toutes, MESSAGES_LISTE.desactivee]).toEqual(["Tous", "Toutes", "(désactivée)"]);
   });
 });

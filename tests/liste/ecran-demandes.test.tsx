@@ -44,6 +44,9 @@ async function ecran(parametres: Record<string, string | string[]> = {}): Promis
 /** Les références affichées (texte des liens, pas leur adresse), dans l'ordre. */
 const references = (html: string) => [...html.matchAll(/>(NOVA-\d{4}-\d{4})</g)].map(([, r]) => r);
 
+/** HTML sans la rangée de filtres (story 2.1, vérifiée dans `tests/regles/fr-13-filtres.test.ts`). */
+const sansFiltres = (html: string) => html.replace(/<div data-slot="filtres"[\s\S]*?<\/form>/, "</form>");
+
 /** Contenu d'un bouton (lien ou bouton grisé) de la pagination. */
 function bouton(html: string, libelle: string): string {
   return html.match(new RegExp(`<(a|button)[^>]*>(?:(?!</(?:a|button)>).)*${libelle}(?:(?!</(?:a|button)>).)*</(?:a|button)>`))?.[0] ?? "";
@@ -97,9 +100,10 @@ describe("accueil : 5 Nouvelle sur 42", () => {
     expect(html).not.toMatch(/@|mailto:|tel:/);
   });
 
-  it("pas de filtre, de « Réinitialiser » ni de « Nouvelle demande »", async () => {
+  it("filtres sans « Réinitialiser » tant qu'aucun n'est actif ; pas de « Nouvelle demande »", async () => {
     const html = await ecran();
-    expect(texteDe(html)).not.toMatch(/Filtres|Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour/);
+    expect(texteDe(html)).toContain("Filtres Statut : Tous");
+    expect(texteDe(html)).not.toMatch(/Réinitialiser|Nouvelle demande|Attribuée à|Tout est à jour|Priorité|Attribution|Sans activité/);
   });
 
   it("ligne de résultat « 42 demandes » au-dessus du tableau, annoncée par la zone toujours présente", async () => {
@@ -148,7 +152,7 @@ describe("autres situations", () => {
 
   it("base vide : « 0 à traiter » et le message vide à la place du tableau", async () => {
     const html = await ecran();
-    expect(texteDe(html)).toBe(
+    expect(texteDe(sansFiltres(html))).toBe(
       "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici.",
     );
     expect(html).not.toContain("<table");
@@ -160,7 +164,7 @@ describe("autres situations", () => {
     simulation.pannesRpc.lister_demandes = { data: null, error: { code: "57P01", message: "x" } };
     simulation.pannesRpc.compter_a_traiter = { data: null, error: { code: "57P01", message: "x" } };
     const html = await ecran();
-    expect(texteDe(html)).toBe("— à traiter Nouvelles Impossible de charger les demandes. Réessayer");
+    expect(texteDe(sansFiltres(html))).toBe("— à traiter Nouvelles Impossible de charger les demandes. Réessayer");
     expect(html).not.toContain("<table");
     const journal = simulation.journal().map((l) => l.evenement);
     expect(journal).toEqual(["erreur_inattendue", "erreur_inattendue"]);

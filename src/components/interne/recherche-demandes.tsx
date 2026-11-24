@@ -4,27 +4,36 @@ import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
+import { FiltresDemandes } from "@/components/interne/filtres-demandes";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { adresseListe, lireRecherche, LONGUEUR_MAXIMALE_RECHERCHE } from "@/shared/adresse-liste";
+import type { CategorieFiltre } from "@/server/lectures/demandes";
+import { adresseListe, lireRecherche, LONGUEUR_MAXIMALE_RECHERCHE, type FiltresListe } from "@/shared/adresse-liste";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
-// Barre de recherche de « Demandes » (I3, FR-12) et la zone de résultats
-// qu'elle met à jour (`children` : ligne « N demandes », tableau et
-// pagination, ou l'état sans résultat, vide ou d'erreur).
+// Barre de recherche de « Demandes » (I3, FR-12), sa rangée de filtres
+// (FR-13, `FiltresDemandes`) et la zone de résultats qu'elles mettent à jour
+// (`children` : ligne « N demandes », tableau et pagination, ou l'état sans
+// résultat, vide ou d'erreur).
 //
-// - Un vrai formulaire `role="search"` (`GET /demandes`, champ `q`) : sans
-//   JavaScript, Entrée ouvre `/demandes?q=…`.
+// - Un vrai formulaire `role="search"` (`GET /demandes`, champs `q`,
+//   `statut`, `categorie`, `canal`) : sans JavaScript, Entrée ouvre
+//   `/demandes?q=…&statut=…`.
 // - Avec JavaScript : la recherche part 300 ms après la dernière frappe, ou
-//   tout de suite avec Entrée. L'adresse est remplacée (`router.replace`,
-//   pas `push` : taper ne remplit pas l'historique), dans une transition :
-//   le serveur relit la liste avec le nouveau `q`, et revient à la page 1.
+//   tout de suite avec Entrée ; un filtre s'applique dès qu'il est choisi.
+//   L'adresse est remplacée (`router.replace`, pas `push` : taper ou essayer
+//   des filtres ne remplit pas l'historique), dans une transition : le
+//   serveur relit la liste, et revient à la page 1.
+// - Recherche et filtres partent toujours ensemble (`naviguer`) : un filtre
+//   choisi pendant qu'une frappe attend ses 300 ms emporte le texte tapé (la
+//   frappe n'est pas perdue), et la recherche garde les filtres choisis
+//   (elle ne les annule pas).
 // - Pendant l'attente, les résultats précédents restent visibles, estompés,
 //   et marqués `aria-busy`.
-// - Le texte vient de l'adresse (`q`, lu par le serveur) : il est
-//   resynchronisé si l'adresse change d'ailleurs (« Réinitialiser », bouton
-//   Retour), mais pas quand le serveur répond à la recherche qu'on vient de
-//   lancer (on aurait pu taper la suite entre-temps).
+// - Texte et filtres viennent de l'adresse (lus par le serveur) : ils sont
+//   resynchronisés si l'adresse change d'ailleurs (« Réinitialiser », bouton
+//   Retour), mais pas quand le serveur répond à ce qu'on vient de lancer (on
+//   aurait pu taper la suite entre-temps).
 // - Le nombre de résultats (`annonce`) est lu aux lecteurs d'écran par une
 //   zone `role="status"` toujours présente : une zone insérée avec son texte
 //   n'est souvent pas annoncée.
@@ -34,33 +43,43 @@ export const DELAI_RECHERCHE_MS = 300;
 
 export function RechercheDemandes({
   q,
+  filtres = {},
+  categories = null,
   annonce,
   children,
 }: {
   q: string;
+  /** Filtres de l'adresse, déjà relus (`lireFiltres`). */
+  filtres?: FiltresListe;
+  /** Catégories du filtre Catégorie ; `null` : lecture impossible. */
+  categories?: CategorieFiltre[] | null;
   /** Texte annoncé : « 1 demande », « 42 demandes », « Aucune demande trouvée », ou vide. */
   annonce: string;
   children: ReactNode;
 }) {
   const router = useRouter();
   const [enAttente, demarrer] = useTransition();
+  /** Adresse de la liste affichée (recherche et filtres, sans la page). */
+  const recue = adresseListe({ q, ...filtres });
   const [texte, setTexte] = useState(q);
-  /** Dernier texte cherché par cette barre (ou venu de l'adresse). */
-  const [envoye, setEnvoye] = useState(q);
-  /** Dernière valeur de `q` reçue, pour voir qu'elle change. */
-  const [qRecu, setQRecu] = useState(q);
+  const [choix, setChoix] = useState<FiltresListe>(filtres);
+  /** Dernière adresse demandée par cette barre (ou venue de l'adresse). */
+  const [envoyee, setEnvoyee] = useState(recue);
+  /** Dernière adresse reçue, pour voir qu'elle change. */
+  const [derniereRecue, setDerniereRecue] = useState(recue);
   /** Nombre de changements d'adresse venus d'ailleurs que de cette barre. */
   const [changementsExternes, setChangementsExternes] = useState(0);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // L'adresse a changé : si ce n'est pas la recherche qu'on vient de lancer,
-  // le champ reprend le texte de l'adresse (et la recherche en attente est
-  // abandonnée, plus bas).
-  if (q !== qRecu) {
-    setQRecu(q);
-    if (q !== envoye) {
+  // L'adresse a changé : si ce n'est pas celle qu'on vient de demander, le
+  // champ et les filtres reprennent ceux de l'adresse (et la recherche en
+  // attente est abandonnée, plus bas).
+  if (recue !== derniereRecue) {
+    setDerniereRecue(recue);
+    if (recue !== envoyee) {
       setTexte(q);
-      setEnvoye(q);
+      setChoix(filtres);
+      setEnvoyee(recue);
       setChangementsExternes((n) => n + 1);
     }
   }
@@ -72,22 +91,42 @@ export function RechercheDemandes({
 
   useEffect(() => arreterMinuteur, []);
 
-  // Changement venu d'ailleurs (« Réinitialiser », Retour, pagination) : la
-  // recherche en attente (300 ms) renverrait l'ancien texte et annulerait
-  // cette navigation. Arrêtée juste après l'affichage, avant tout minuteur.
-  // Pas quand `q` répond à la recherche de la barre : le texte tapé
-  // entre-temps doit encore être cherché.
+  // Changement venu d'ailleurs (« Réinitialiser », Retour) : la recherche en
+  // attente (300 ms) renverrait l'ancien texte et annulerait cette
+  // navigation. Arrêtée juste après l'affichage, avant tout minuteur. Pas
+  // quand l'adresse répond à la barre : le texte tapé entre-temps doit
+  // encore être cherché.
   useLayoutEffect(() => {
     if (changementsExternes === 0 || minuteur.current === null) return;
     clearTimeout(minuteur.current);
     minuteur.current = null;
   }, [changementsExternes]);
 
-  function chercher(brut: string) {
+  /** Ouvre la liste pour ce texte et ces filtres, à la page 1. */
+  function naviguer(brut: string, nouveaux: FiltresListe) {
     arreterMinuteur();
-    const recherche = lireRecherche(brut);
-    setEnvoye(recherche);
-    demarrer(() => router.replace(adresseListe({ q: recherche })));
+    const adresse = adresseListe({ q: lireRecherche(brut), ...nouveaux });
+    setEnvoyee(adresse);
+    demarrer(() => router.replace(adresse));
+  }
+
+  /** Nouveau filtre : appliqué tout de suite, avec le texte tapé (même en attente). */
+  function filtrer(nouveaux: FiltresListe) {
+    setChoix(nouveaux);
+    naviguer(texte, nouveaux);
+  }
+
+  /**
+   * « Réinitialiser » de la rangée : la barre est vidée tout de suite (la
+   * frappe en attente ne doit pas rétablir l'ancien texte, et la réponse
+   * d'un filtre pas encore arrivée ne doit pas garder l'ancien choix) ; le
+   * lien fait lui-même la navigation vers `/demandes`.
+   */
+  function reinitialiser() {
+    arreterMinuteur();
+    setTexte("");
+    setChoix({});
+    setEnvoyee(adresseListe());
   }
 
   return (
@@ -98,7 +137,7 @@ export function RechercheDemandes({
         method="get"
         onSubmit={(evenement) => {
           evenement.preventDefault();
-          chercher(texte);
+          naviguer(texte, choix);
         }}
       >
         <div className="relative">
@@ -121,11 +160,12 @@ export function RechercheDemandes({
               setTexte(valeur);
               arreterMinuteur();
               // Rien ne change (espaces ajoutés au bord) : pas de nouvelle lecture.
-              if (lireRecherche(valeur) === envoye) return;
-              minuteur.current = setTimeout(() => chercher(valeur), DELAI_RECHERCHE_MS);
+              if (adresseListe({ q: lireRecherche(valeur), ...choix }) === envoyee) return;
+              minuteur.current = setTimeout(() => naviguer(valeur, choix), DELAI_RECHERCHE_MS);
             }}
           />
         </div>
+        <FiltresDemandes choix={choix} categories={categories} onChange={filtrer} onReinitialiser={reinitialiser} />
       </form>
       <p data-slot="annonce-resultats" role="status" className="sr-only">
         {annonce}

@@ -49,14 +49,29 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
     },
   );
 
-  it("la version en vigueur de lister_demandes est celle de la recherche (story 1.9)", () => {
+  it("la version en vigueur de lister_demandes est celle des filtres (story 2.1), avec la recherche (story 1.9)", () => {
     expect(corps("lister_demandes")).toContain("v_q := public.normaliser_recherche(v_q);");
+    expect(corps("lister_demandes")).toContain("v_statut := case when p_statut in");
   });
 
-  it("la liste compte les demandes de la table, sans autre condition que la recherche", () => {
+  it("lister_categories ne filtre selon personne", () => {
+    const texte = corps("lister_categories");
+    expect(texte).toContain("perform public.exiger_utilisateur_interne();");
+    expect(texte).not.toContain("auth.uid()");
+    expect(texte).not.toMatch(/attribu|profil/);
+  });
+
+  it("la liste compte les demandes de la table, sans autre condition que les filtres et la recherche", () => {
     const condition =
       corps("lister_demandes").match(/select count\(\*\)::integer\s+into v_total\s+from public\.demandes d\s+where ([\s\S]*?);/)?.[1] ?? "";
-    const lignes = condition.split(/\s+or\s+/).map((ligne) => ligne.trim());
+    // Filtres de la story 2.1, puis la recherche de la story 1.9.
+    const [statut, categorie, canal, recherche = ""] = condition.split(/\s+and\s+/).map((partie) => partie.trim());
+    expect([statut, categorie, canal]).toEqual([
+      "(v_statut is null or d.statut = v_statut)",
+      "(v_categorie is null or d.categorie_id = v_categorie)",
+      "(v_canal is null or d.canal = v_canal)",
+    ]);
+    const lignes = recherche.replace(/^\(|\)$/g, "").split(/\s+or\s+/).map((ligne) => ligne.trim());
     expect(lignes[0]).toBe("v_q = ''");
     for (const ligne of lignes.slice(1)) {
       expect(ligne).toMatch(/^strpos\(public\.normaliser_recherche\(d\.(reference|nom|email|entreprise|objet)\), v_q\) > 0$/);
@@ -64,7 +79,7 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
     expect(lignes).toHaveLength(6);
   });
 
-  it("le serveur n'envoie que la page, la taille et le texte cherché, aucun identifiant de personne", async () => {
+  it("le serveur n'envoie que la page, la taille, le texte cherché et les filtres, aucun identifiant de personne", async () => {
     await lireListeDemandes(1);
     await compterATraiter();
     expect(simulation.rpcSession.mock.calls).toEqual([
@@ -73,6 +88,13 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
     ]);
     await lireListeDemandes(1, "helene");
     expect(simulation.rpcSession).toHaveBeenLastCalledWith("lister_demandes", { p_page: 1, p_taille: 25, p_q: "helene" });
+    await lireListeDemandes(1, "", { statut: "nouvelle", canal: "email" });
+    expect(simulation.rpcSession).toHaveBeenLastCalledWith("lister_demandes", {
+      p_page: 1,
+      p_taille: 25,
+      p_statut: "nouvelle",
+      p_canal: "email",
+    });
   });
 
   it.each(["collaborateur", "administrateur"])("un %s voit les 42 demandes", async (role) => {

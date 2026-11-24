@@ -27,9 +27,9 @@ export function EtatListeVide() {
 }
 
 /**
- * La recherche ne trouve rien (FR-12). « Réinitialiser » vide la recherche et
- * réaffiche toute la liste (`/demandes`) ; la story 2.1 lui fera aussi
- * retirer les filtres. Il remplace l'adresse, comme la recherche : Retour
+ * La recherche ou les filtres ne trouvent rien (FR-12, FR-13).
+ * « Réinitialiser » retire la recherche et les filtres et réaffiche toute la
+ * liste (`/demandes`). Il remplace l'adresse, comme la recherche : Retour
  * ne ramène pas à l'écran sans résultat. L'annonce aux lecteurs d'écran est
  * faite par la zone toujours présente de `RechercheDemandes`.
  */

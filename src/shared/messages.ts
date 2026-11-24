@@ -195,6 +195,15 @@ export const MESSAGES_LISTE = {
   rechercheVideTitre: "Aucune demande trouvée",
   rechercheVideTexte: "Vérifiez l'orthographe ou retirez des filtres.",
   reinitialiser: "Réinitialiser",
+  /** Rangée de filtres (story 2.1) : « Statut : Tous », « Catégorie : Toutes », « Canal : Tous ». */
+  filtres: "Filtres",
+  filtreStatut: "Statut",
+  filtreCategorie: "Catégorie",
+  filtreCanal: "Canal",
+  tous: "Tous",
+  toutes: "Toutes",
+  /** Après le nom d'une catégorie désactivée, dans le filtre Catégorie. */
+  desactivee: "(désactivée)",
 } as const;
 
 /** Ligne de résultat au-dessus du tableau (FR-13) : « 1 demande », « 42 demandes ». */

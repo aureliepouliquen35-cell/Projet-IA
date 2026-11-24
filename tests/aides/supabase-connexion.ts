@@ -22,6 +22,13 @@ import { vi } from "vitest";
 //   Recherche (story 1.9, `p_q`) : nettoyée (bords, 150 caractères), sans
 //   accents ni majuscules, cherchée telle quelle dans la référence, le nom,
 //   l'email, l'entreprise et l'objet ; `total` = nombre de résultats.
+//   Filtres (story 2.1, `p_statut`, `p_categorie`, `p_canal`) : combinés
+//   entre eux et avec la recherche ; statut ou canal inconnu, catégorie
+//   absente de `categories` : ignorés.
+// - Catégories du filtre (story 2.1) : `lister_categories` par le client de
+//   session, sur une copie en mémoire (`categories`, les cinq de départ à
+//   chaque `reinitialiser`) : même refus `NV201`, actives d'abord, puis
+//   par `ordre`.
 // - Détail d'une demande (story 1.10) : `lire_demande` par le client de
 //   session, sur les mêmes demandes : même refus `NV201`, référence mise en
 //   majuscules, `null` si inconnue, événements renvoyés dans l'ordre donné
@@ -88,6 +95,11 @@ export type DemandeSimulee = {
   entreprise: string | null;
   objet: string;
   categorie: string;
+  /**
+   * Identifiant de la catégorie, lu par le filtre Catégorie (story 2.1). Par
+   * défaut : celui de la catégorie en base qui porte le nom `categorie`.
+   */
+  categorie_id?: string;
   statut: "nouvelle" | "en_cours" | "traitee";
   priorite: "normale" | "urgente";
   /** Lus par le détail (story 1.10) seulement ; facultatifs ici. */
@@ -147,6 +159,26 @@ export function detailSimule(d: DemandeSimulee) {
     evenements: evenements.map(evenementComplet),
   };
 }
+
+/** Une catégorie, telle que la base la garde. */
+export type CategorieSimulee = { id: string; nom: string; active: boolean; ordre: number };
+
+/** Les cinq catégories de départ (migration 1.2), dans leur ordre. */
+export const CATEGORIES_DEPART: readonly CategorieSimulee[] = [
+  "Demande d'information",
+  "Problème technique",
+  "Demande de rendez-vous",
+  "Question administrative",
+  "Autre",
+].map((nom, index) => ({
+  id: `c0000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  nom,
+  active: true,
+  ordre: index + 1,
+}));
+
+/** Identifiant de la catégorie de départ « Problème technique ». */
+export const ID_PROBLEME_TECHNIQUE = CATEGORIES_DEPART[1].id;
 
 /** `normaliser_recherche` de la migration 1.9 : sans accents, en minuscules. */
 export function normaliserRecherche(texte: string): string {
@@ -223,6 +255,11 @@ export function creerSimulationConnexion() {
   const cookiesPoses = new Map<string, { valeur: string; options: Record<string, unknown> }>();
   /** Demandes en base, lues par les fonctions de la liste. */
   const demandes: DemandeSimulee[] = [];
+  /** Catégories en base, lues par `lister_categories` et le filtre Catégorie. */
+  const categories: CategorieSimulee[] = [];
+  /** Identifiant de la catégorie d'une demande (`categorie_id`, sinon d'après son nom). */
+  const categorieDe = (d: DemandeSimulee) =>
+    d.categorie_id ?? categories.find((c) => c.nom === d.categorie)?.id ?? null;
 
   function bloquee(email: string): boolean {
     const derniereReussite = Math.max(
@@ -347,7 +384,7 @@ export function creerSimulationConnexion() {
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
       void signal;
       if (pannesRpc[nom]) return pannesRpc[nom];
-      if (!["compter_a_traiter", "lister_demandes", "lire_demande", "changer_statut"].includes(nom)) {
+      if (!["compter_a_traiter", "lister_demandes", "lire_demande", "changer_statut", "lister_categories"].includes(nom)) {
         return { data: null, error: { code: "PGRST202", message: `fonction inconnue : ${nom}` } };
       }
       if (!utilisateurInterne()) {
@@ -360,12 +397,29 @@ export function creerSimulationConnexion() {
         return { data: demande ? detailSimule(demande) : null, error: null };
       }
       if (nom === "changer_statut") return changerStatut(parametres);
+      if (nom === "lister_categories") {
+        const triees = [...categories].sort((a, b) => Number(b.active) - Number(a.active) || a.ordre - b.ordre);
+        return { data: triees.map(({ id, nom: nomCategorie, active }) => ({ id, nom: nomCategorie, active })), error: null };
+      }
 
       const entier = (valeur: unknown, defaut: number) =>
         typeof valeur === "number" && Number.isInteger(valeur) ? valeur : defaut;
       const taille = Math.min(Math.max(entier(parametres.p_taille, 25), 1), 100);
       const q = nettoyerRecherche(parametres.p_q);
-      const trouvees = demandes.filter((d) => correspond(d, q));
+      // Filtres de la migration 2.1 : valeur inconnue ignorée.
+      const statut = ["nouvelle", "en_cours", "traitee"].includes(String(parametres.p_statut)) ? parametres.p_statut : null;
+      const canal = ["formulaire", "telephone", "email"].includes(String(parametres.p_canal)) ? parametres.p_canal : null;
+      const categorie =
+        typeof parametres.p_categorie === "string"
+          ? (categories.find((c) => c.id === String(parametres.p_categorie).toLowerCase())?.id ?? null)
+          : null;
+      const trouvees = demandes.filter(
+        (d) =>
+          (statut === null || d.statut === statut) &&
+          (canal === null || (d.canal ?? "formulaire") === canal) &&
+          (categorie === null || categorieDe(d) === categorie) &&
+          correspond(d, q),
+      );
       const total = trouvees.length;
       const derniere = Math.max(1, Math.ceil(total / taille));
       const page = Math.min(Math.max(entier(parametres.p_page, 1), 1), derniere);
@@ -461,6 +515,8 @@ export function creerSimulationConnexion() {
     for (const nom of Object.keys(pannesRpc)) delete pannesRpc[nom];
     temporaires.clear();
     demandes.length = 0;
+    categories.length = 0;
+    categories.push(...CATEGORIES_DEPART.map((c) => ({ ...c })));
     cookiesRecus.clear();
     cookiesPoses.clear();
     vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
@@ -493,6 +549,7 @@ export function creerSimulationConnexion() {
     rpc,
     rpcSession,
     demandes,
+    categories,
     creerClientSecret,
     createClient,
     signInWithPassword,

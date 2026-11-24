@@ -10,7 +10,7 @@ import { HistoriqueDemande } from "@/components/interne/historique-demande";
 import { exigerUtilisateur } from "@/server/garde";
 import { lireDemande, type DetailDemande } from "@/server/lectures/demande";
 import { lirePage } from "@/server/lectures/demandes";
-import { adresseListe, lireRecherche } from "@/shared/adresse-liste";
+import { adresseListe, lireFiltres, lireRecherche } from "@/shared/adresse-liste";
 import { lienTelephone } from "@/shared/contacts";
 import { formaterDateHeure } from "@/shared/dates";
 import { LIBELLES_CANAUX } from "@/shared/libelles";
@@ -21,8 +21,8 @@ import type { ParametresAdresse } from "../contenu-demandes";
 // Contenu du détail d'une demande (I4 ; EXPERIENCE.md, DESIGN.md). Comme
 // toute lecture interne, il vérifie d'abord la personne connectée (AD-7).
 //
-// En-tête : fil d'Ariane « ← Demandes » (retour à la même recherche et à la
-// même page de la liste, lues dans l'adresse du détail), référence, objet
+// En-tête : fil d'Ariane « ← Demandes » (retour à la même recherche, aux
+// mêmes filtres et à la même page de la liste, lus dans l'adresse du détail), référence, objet
 // en titre, badge de statut. Puis, à partir de 1 024 px, deux colonnes :
 //   - à gauche, les blocs Demande (description en texte simple, retours à
 //     la ligne gardés : React l'échappe, jamais de HTML, NFR-11), Demandeur
@@ -113,7 +113,11 @@ export async function ContenuDemande({
   await connection();
   await exigerUtilisateur();
   const [{ reference }, parametres] = await Promise.all([params, searchParams]);
-  const retour = adresseListe({ q: lireRecherche(parametres.q), page: lirePage(parametres.page) });
+  const retour = adresseListe({
+    q: lireRecherche(parametres.q),
+    ...lireFiltres(parametres),
+    page: lirePage(parametres.page),
+  });
 
   const demande = await lireDemande(reference);
   if (!demande) notFound();

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { BadgeStatut } from "@/components/interne/badge-statut";
 import type { LigneDemande } from "@/server/lectures/demandes";
-import { adresseDetail } from "@/shared/adresse-liste";
+import { adresseDetail, type EtatListe } from "@/shared/adresse-liste";
 import { formaterDateHeure } from "@/shared/dates";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
@@ -14,8 +14,9 @@ import { MESSAGES_LISTE } from "@/shared/messages";
 // Toute la ligne ouvre le détail (I4), sans JavaScript : la référence est un
 // vrai lien, dont une zone invisible (`after:absolute after:inset-0`) couvre
 // la ligne (`relative` sur `<tr>`). Clavier, clic du milieu et nouvel onglet
-// marchent comme sur tout lien. L'adresse du détail garde la recherche et la
-// page de la liste (`adresseDetail`) : le fil d'Ariane y ramène.
+// marchent comme sur tout lien. L'adresse du détail garde la recherche, les
+// filtres et la page de la liste (`adresseDetail`) : le fil d'Ariane y
+// ramène.
 //
 // Pas encore de colonne « Attribuée à » ni de badges Urgente / Sans activité
 // (Should).
@@ -25,14 +26,11 @@ const CELLULE = "h-14 border-t px-3 align-middle";
 
 export function TableauDemandes({
   demandes,
-  q = "",
-  page = 1,
+  liste = {},
 }: {
   demandes: LigneDemande[];
-  /** Texte cherché de la liste affichée, gardé par le lien vers le détail. */
-  q?: string;
-  /** Page de la liste affichée, gardée par le lien vers le détail. */
-  page?: number;
+  /** Recherche, filtres et page de la liste affichée, gardés par le lien vers le détail. */
+  liste?: EtatListe;
 }) {
   const { colonnes } = MESSAGES_LISTE;
   return (
@@ -58,7 +56,7 @@ export function TableauDemandes({
             >
               <td className={CELLULE}>
                 <Link
-                  href={adresseDetail(demande.reference, { q, page })}
+                  href={adresseDetail(demande.reference, liste)}
                   className="font-mono text-reference whitespace-nowrap text-primary underline-offset-2 after:absolute after:inset-0 hover:underline"
                 >
                   {demande.reference}

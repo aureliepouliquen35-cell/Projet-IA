@@ -8,21 +8,21 @@ import { createClient } from "@/lib/supabase/server";
 import { exigerUtilisateur } from "@/server/garde";
 import { journaliser } from "@/server/journal";
 import { attendre, ATTENTE_ESSAI_LENT_MS, modeEssaiListe } from "@/server/lectures/essai";
-import { lireRecherche } from "@/shared/adresse-liste";
+import { lireFiltres, lireRecherche, type FiltresListe } from "@/shared/adresse-liste";
 import { nouveauCodeSupport } from "@/shared/code-support";
 import { FORME_REFERENCE, STATUTS, TAILLE_PAGE, type Statut } from "@/shared/constantes";
 import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
 
-// Lectures de l'écran I3 « Demandes » (AD-1) : la liste paginée et le
-// compteur « à traiter ». Appelées par des Server Components, jamais depuis
-// le navigateur.
+// Lectures de l'écran I3 « Demandes » (AD-1) : la liste paginée, le
+// compteur « à traiter » et les catégories du filtre « Catégorie ».
+// Appelées par des Server Components, jamais depuis le navigateur.
 //
 // - Chaque lecture commence par `exigerUtilisateur()` (AD-7) : sans session,
 //   ou avec un compte inactif, renvoi vers la connexion.
-// - Elle passe par une fonction SQL (`lister_demandes`, `compter_a_traiter`)
-//   avec la session de la personne (rôle `authenticated`) : aucune table
-//   n'est lisible directement (AD-9). La définition de « à traiter » est dans
-//   la base (AD-5).
+// - Elle passe par une fonction SQL (`lister_demandes`, `compter_a_traiter`,
+//   `lister_categories`) avec la session de la personne (rôle
+//   `authenticated`) : aucune table n'est lisible directement (AD-9). La
+//   définition de « à traiter » est dans la base (AD-5).
 // - La réponse de la base est contrôlée (Zod) avant d'être affichée.
 // - Une panne (base injoignable, refus, réponse inattendue) n'est pas levée :
 //   elle est journalisée avec un code court, sans aucune donnée de demandeur
@@ -52,7 +52,7 @@ export type LigneDemande = {
 export type ListeDemandes = {
   /** Texte cherché, déjà nettoyé (`lireRecherche`) ; vide : toute la liste. */
   recherche: string;
-  /** Nombre de demandes correspondant à la recherche (toutes si `recherche` est vide). */
+  /** Nombre de demandes correspondant à la recherche et aux filtres (toutes sans l'une ni les autres). */
   total: number;
   /** Page affichée, déjà ramenée entre 1 et la dernière par la base. */
   page: number;
@@ -142,19 +142,24 @@ export function lirePage(valeur: string | string[] | undefined): number {
 }
 
 /**
- * Une page de la liste des demandes (FR-11, FR-12, RM-6) : toutes les
- * demandes, ou celles qui contiennent le texte cherché (référence, nom,
+ * Une page de la liste des demandes (FR-11, FR-12, FR-13, RM-6) : toutes
+ * les demandes, ou celles qui contiennent le texte cherché (référence, nom,
  * email, entreprise ou objet, sans tenir compte des majuscules ni des
- * accents : la base s'en charge), des plus récentes aux plus anciennes,
- * 25 par page.
+ * accents : la base s'en charge) et qui remplissent les filtres (statut,
+ * catégorie, canal), des plus récentes aux plus anciennes, 25 par page.
  *
- * Le texte cherché peut contenir un nom ou un email : il n'est jamais
- * journalisé, ni écrit dans un message d'erreur (AD-12, AD-13).
+ * Les filtres sont relus (`lireFiltres`) : une valeur inconnue n'est pas
+ * envoyée ; une catégorie qui n'existe pas est ignorée par la base.
+ *
+ * Le texte cherché peut contenir un nom ou un email, et les filtres disent
+ * ce que la personne regarde : ni l'un ni les autres ne sont journalisés, ni
+ * écrits dans un message d'erreur (AD-12, AD-13).
  */
 export const lireListeDemandes = cache(
-  async (page: number, q = ""): Promise<ResultatLecture<ListeDemandes>> => {
+  async (page: number, q = "", choix: FiltresListe = {}): Promise<ResultatLecture<ListeDemandes>> => {
     await exigerUtilisateur();
     const recherche = lireRecherche(q);
+    const filtres = lireFiltres(choix);
 
     return lire("lister_demandes", async () => {
       if ((await essai()) === "vide") {
@@ -163,12 +168,15 @@ export const lireListeDemandes = cache(
 
       const supabase = await createClient();
       const { data, error } = await supabase
-        // `p_q` seulement pour une vraie recherche : la liste simple reste
-        // l'appel de la story 1.8.
+        // `p_q` et chaque filtre seulement s'ils sont remplis : la liste
+        // simple reste l'appel de la story 1.8.
         .rpc("lister_demandes", {
           p_page: page,
           p_taille: TAILLE_PAGE,
           ...(recherche ? { p_q: recherche } : {}),
+          ...(filtres.statut ? { p_statut: filtres.statut } : {}),
+          ...(filtres.categorie ? { p_categorie: filtres.categorie } : {}),
+          ...(filtres.canal ? { p_canal: filtres.canal } : {}),
         })
         .abortSignal(AbortSignal.timeout(DELAI_MS));
       if (error) {
@@ -219,5 +227,48 @@ export const compterATraiter = cache(async (): Promise<ResultatLecture<number>> 
     const resultat = schemaCompteur.safeParse(data);
     if (!resultat.success) throw reponseInattendue("compter_a_traiter", resultat.error);
     return resultat.data;
+  });
+});
+
+/** Une catégorie proposée par le filtre « Catégorie ». */
+export type CategorieFiltre = {
+  id: string;
+  nom: string;
+  /** Faux : catégorie désactivée, proposée après les actives et toujours filtrable. */
+  active: boolean;
+};
+
+const schemaCategories = z.array(
+  z.object({
+    id: z.string().regex(FORME_IDENTIFIANT),
+    nom: z.string(),
+    active: z.boolean(),
+  }),
+);
+
+/**
+ * Catégories du filtre « Catégorie » (FR-13) : toutes, les actives d'abord,
+ * puis les désactivées, chacune dans l'ordre d'affichage (la base les trie).
+ * Une panne est journalisée avec un code : l'écran désactive alors ce seul
+ * filtre.
+ *
+ * Pas de réglage `ESSAI_LISTE_DEMANDES` ici : une panne simulée de la liste
+ * laisse les filtres utilisables, comme le veut l'écran.
+ */
+export const lireCategoriesFiltre = cache(async (): Promise<ResultatLecture<CategorieFiltre[]>> => {
+  await exigerUtilisateur();
+
+  return lire("lister_categories", async () => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .rpc("lister_categories")
+      .abortSignal(AbortSignal.timeout(DELAI_MS));
+    if (error) {
+      throw new Error(`La fonction lister_categories a échoué (code ${error.code || "inconnu"}).`);
+    }
+
+    const resultat = schemaCategories.safeParse(data);
+    if (!resultat.success) throw reponseInattendue("lister_categories", resultat.error);
+    return resultat.data.map(({ id, nom, active }) => ({ id: id.toLowerCase(), nom, active }));
   });
 });

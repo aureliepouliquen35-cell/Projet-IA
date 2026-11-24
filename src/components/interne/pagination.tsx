@@ -2,27 +2,27 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { adresseListe } from "@/shared/adresse-liste";
+import { adresseListe, type EtatListe } from "@/shared/adresse-liste";
 import { TAILLE_PAGE } from "@/shared/constantes";
 import { MESSAGES_LISTE, resumePagination } from "@/shared/messages";
 
 // Pagination de la liste (DESIGN.md, Pagination ; FR-11) : « Demandes 1 à
 // 25 sur 42 · Page 1 sur 2 », puis deux boutons secondaires de 36 px. Le
 // bouton inutile est grisé. La page est gardée dans l'adresse (`?page=`),
-// avec le texte cherché (`?q=`) : convention « Adresse de la liste »
-// (`adresseListe`), que les futurs filtres suivront.
+// avec le texte cherché (`?q=`) et les filtres (`?statut=`, `?categorie=`,
+// `?canal=`) : convention « Adresse de la liste » (`adresseListe`).
 
 export function Pagination({
   total,
   page,
   pages,
-  q = "",
+  liste = {},
 }: {
   total: number;
   page: number;
   pages: number;
-  /** Texte cherché, gardé par « Précédente » et « Suivante ». */
-  q?: string;
+  /** Recherche et filtres de la liste affichée, gardés par « Précédente » et « Suivante ». */
+  liste?: Omit<EtatListe, "page">;
 }) {
   const premiere = total === 0 ? 0 : (page - 1) * TAILLE_PAGE + 1;
   const derniere = Math.min(page * TAILLE_PAGE, total);
@@ -37,7 +37,7 @@ export function Pagination({
       <div className="flex gap-2">
         {page > 1 ? (
           <Button asChild variant="secondaire" size="sm">
-            <Link href={adresseListe({ q, page: page - 1 })} rel="prev">
+            <Link href={adresseListe({ ...liste, page: page - 1 })} rel="prev">
               <ChevronLeft aria-hidden="true" />
               {MESSAGES_LISTE.precedente}
             </Link>
@@ -50,7 +50,7 @@ export function Pagination({
         )}
         {page < pages ? (
           <Button asChild variant="secondaire" size="sm">
-            <Link href={adresseListe({ q, page: page + 1 })} rel="next">
+            <Link href={adresseListe({ ...liste, page: page + 1 })} rel="next">
               {MESSAGES_LISTE.suivante}
               <ChevronRight aria-hidden="true" />
             </Link>

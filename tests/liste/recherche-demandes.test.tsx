@@ -48,6 +48,9 @@ const annonce = (html: string) =>
 /** Le champ de recherche (balise `<input>`). */
 const champ = (html: string) => html.match(/<input[^>]*name="q"[^>]*>/)?.[0] ?? "";
 
+/** HTML sans la rangée de filtres (story 2.1, vérifiée dans `tests/regles/fr-13-filtres.test.ts`). */
+const sansFiltres = (html: string) => html.replace(/<div data-slot="filtres"[\s\S]*?<\/form>/, "</form>");
+
 /** Contenu d'un lien ou bouton de la pagination. */
 function bouton(html: string, libelle: string): string {
   return html.match(new RegExp(`<(a|button)[^>]*>(?:(?!</(?:a|button)>).)*${libelle}(?:(?!</(?:a|button)>).)*</(?:a|button)>`))?.[0] ?? "";
@@ -98,8 +101,9 @@ describe("barre de recherche", () => {
     expect(input).toContain('placeholder="Rechercher par référence, nom, email, entreprise ou objet"');
     expect(input).toContain('value=""');
     expect(html).toMatch(/<form role="search"[^>]*><div[^>]*><svg[^>]*lucide-search[^>]*aria-hidden="true"/);
-    // Pas d'étiquette visible (maquette) : la phrase est dans le champ.
-    expect(html).not.toContain("<label");
+    // Pas d'étiquette visible (maquette) : la phrase est dans le champ. Les
+    // seules étiquettes sont celles des filtres (story 2.1), après le champ.
+    expect(sansFiltres(html)).not.toContain("<label");
   });
 
   it("?q= : le champ affiche le texte cherché (rechargement, adresse partagée)", async () => {
@@ -157,7 +161,7 @@ describe("résultats", () => {
     expect(etat).toMatch(/^<div data-slot="recherche-vide" class=/);
     expect(annonce(html)).toBe("Aucune demande trouvée");
     // Lu une fois dans la zone d'annonce (invisible), une fois à l'écran.
-    expect(texteDe(html)).toBe(
+    expect(texteDe(sansFiltres(html))).toBe(
       "5 à traiter Nouvelles Aucune demande trouvée Aucune demande trouvée Vérifiez l'orthographe ou retirez des filtres. Réinitialiser",
     );
     expect(bouton(html, "Réinitialiser")).toMatch(/^<a[^>]*href="\/demandes"[^>]*data-variant="secondaire"|^<a[^>]*data-variant="secondaire"[^>]*href="\/demandes"/);
@@ -195,7 +199,7 @@ describe("résultats", () => {
 describe("autres états", () => {
   it("base vide, sans q : message « Aucune demande pour le moment… » (inchangé)", async () => {
     const html = await ecran();
-    expect(texteDe(html)).toBe(
+    expect(texteDe(sansFiltres(html))).toBe(
       "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici.",
     );
     expect(annonce(html)).toBe("");
@@ -210,7 +214,7 @@ describe("autres états", () => {
     remplir();
     simulation.pannesRpc.lister_demandes = { data: null, error: { code: "57P01", message: "x" } };
     const html = await ecran({ q: "Hélène Dupuis" });
-    expect(texteDe(html)).toBe("5 à traiter Nouvelles Impossible de charger les demandes. Réessayer");
+    expect(texteDe(sansFiltres(html))).toBe("5 à traiter Nouvelles Impossible de charger les demandes. Réessayer");
     expect(champ(html)).toContain('value="Hélène Dupuis"');
     expect(champ(html)).not.toMatch(/ disabled[ =/>]/);
     expect(annonce(html)).toBe("");
@@ -276,14 +280,15 @@ describe("composants", () => {
     const source = readFileSync(join(process.cwd(), "src/components/interne/recherche-demandes.tsx"), "utf8");
     expect(source.startsWith('"use client";')).toBe(true);
     expect(source).toContain("useTransition()");
-    expect(source).toMatch(/demarrer\(\(\) => router\.replace\(adresseListe\(\{ q: recherche \}\)\)\)/);
+    // Recherche et filtres partent ensemble, à la page 1.
+    expect(source).toMatch(/const adresse = adresseListe\(\{ q: lireRecherche\(brut\), \.\.\.nouveaux \}\);\s*setEnvoyee\(adresse\);\s*demarrer\(\(\) => router\.replace\(adresse\)\);/);
     expect(source).not.toContain("router.push");
-    expect(source).toContain("setTimeout(() => chercher(valeur), DELAI_RECHERCHE_MS)");
-    expect(source).toMatch(/onSubmit=\{\(evenement\) => \{\s*evenement\.preventDefault\(\);\s*chercher\(texte\);/);
+    expect(source).toContain("setTimeout(() => naviguer(valeur, choix), DELAI_RECHERCHE_MS)");
+    expect(source).toMatch(/onSubmit=\{\(evenement\) => \{\s*evenement\.preventDefault\(\);\s*naviguer\(texte, choix\);/);
     expect(source).toContain("aria-busy={enAttente || undefined}");
     expect(source).toContain('enAttente && "opacity-50"');
-    // Texte resynchronisé si l'adresse change d'ailleurs (Réinitialiser, Retour).
-    expect(source).toMatch(/if \(q !== qRecu\) \{\s*setQRecu\(q\);\s*if \(q !== envoye\) \{\s*setTexte\(q\);\s*setEnvoye\(q\);\s*setChangementsExternes\(\(n\) => n \+ 1\);/);
+    // Texte et filtres resynchronisés si l'adresse change d'ailleurs (Réinitialiser, Retour).
+    expect(source).toMatch(/if \(recue !== derniereRecue\) \{\s*setDerniereRecue\(recue\);\s*if \(recue !== envoyee\) \{\s*setTexte\(q\);\s*setChoix\(filtres\);\s*setEnvoyee\(recue\);\s*setChangementsExternes\(\(n\) => n \+ 1\);/);
     // … et la recherche en attente (300 ms) est abandonnée, sinon elle renverrait l'ancien texte.
     expect(source).toMatch(/useLayoutEffect\(\(\) => \{\s*if \(changementsExternes === 0 \|\| minuteur\.current === null\) return;\s*clearTimeout\(minuteur\.current\);/);
   });

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigerUtilisateur } from "@/server/garde";
 import { journaliser } from "@/server/journal";
 import { attendre, ATTENTE_ESSAI_LENT_MS, modeEssaiListe } from "@/server/lectures/essai";
-import { lireFiltres, lireRecherche, type FiltresListe } from "@/shared/adresse-liste";
+import { lireRecherche, relireFiltres, type FiltresListe } from "@/shared/adresse-liste";
 import { nouveauCodeSupport } from "@/shared/code-support";
 import { FORME_REFERENCE, STATUTS, TAILLE_PAGE, type Statut } from "@/shared/constantes";
 import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
@@ -146,10 +146,13 @@ export function lirePage(valeur: string | string[] | undefined): number {
  * les demandes, ou celles qui contiennent le texte cherché (référence, nom,
  * email, entreprise ou objet, sans tenir compte des majuscules ni des
  * accents : la base s'en charge) et qui remplissent les filtres (statut,
- * catégorie, canal), des plus récentes aux plus anciennes, 25 par page.
+ * catégorie, canal, « À traiter »), des plus récentes aux plus anciennes,
+ * 25 par page.
  *
- * Les filtres sont relus (`lireFiltres`) : une valeur inconnue n'est pas
+ * Les filtres sont relus (`relireFiltres`) : une valeur inconnue n'est pas
  * envoyée ; une catégorie qui n'existe pas est ignorée par la base.
+ * « À traiter » n'envoie que `p_a_traiter: true` : la base applique sa
+ * propre définition (colonne `a_traiter`, AD-5), la même que le compteur.
  *
  * Le texte cherché peut contenir un nom ou un email, et les filtres disent
  * ce que la personne regarde : ni l'un ni les autres ne sont journalisés, ni
@@ -159,7 +162,7 @@ export const lireListeDemandes = cache(
   async (page: number, q = "", choix: FiltresListe = {}): Promise<ResultatLecture<ListeDemandes>> => {
     await exigerUtilisateur();
     const recherche = lireRecherche(q);
-    const filtres = lireFiltres(choix);
+    const filtres = relireFiltres(choix);
 
     return lire("lister_demandes", async () => {
       if ((await essai()) === "vide") {
@@ -177,6 +180,7 @@ export const lireListeDemandes = cache(
           ...(filtres.statut ? { p_statut: filtres.statut } : {}),
           ...(filtres.categorie ? { p_categorie: filtres.categorie } : {}),
           ...(filtres.canal ? { p_canal: filtres.canal } : {}),
+          ...(filtres.aTraiter ? { p_a_traiter: true } : {}),
         })
         .abortSignal(AbortSignal.timeout(DELAI_MS));
       if (error) {

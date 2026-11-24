@@ -24,7 +24,8 @@ import { vi } from "vitest";
 //   l'email, l'entreprise et l'objet ; `total` = nombre de résultats.
 //   Filtres (story 2.1, `p_statut`, `p_categorie`, `p_canal`) : combinés
 //   entre eux et avec la recherche ; statut ou canal inconnu, catégorie
-//   absente de `categories` : ignorés.
+//   absente de `categories` : ignorés. Filtre « À traiter » (story 2.2,
+//   `p_a_traiter`) : vrai seulement, même définition que le compteur.
 // - Catégories du filtre (story 2.1) : `lister_categories` par le client de
 //   session, sur une copie en mémoire (`categories`, les cinq de départ à
 //   chaque `reinitialiser`) : même refus `NV201`, actives d'abord, puis
@@ -451,8 +452,11 @@ export function creerSimulationConnexion() {
         typeof parametres.p_categorie === "string"
           ? (categories.find((c) => c.id === String(parametres.p_categorie).toLowerCase())?.id ?? null)
           : null;
+      // Filtre « À traiter » de la migration 2.2 : vrai seulement ; même définition que le compteur.
+      const seulementATraiter = parametres.p_a_traiter === true;
       const trouvees = demandes.filter(
         (d) =>
+          (!seulementATraiter || aTraiter(d)) &&
           (statut === null || d.statut === statut) &&
           (canal === null || (d.canal ?? "formulaire") === canal) &&
           (categorie === null || categorieDe(d) === categorie) &&

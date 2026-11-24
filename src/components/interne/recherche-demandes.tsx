@@ -17,8 +17,9 @@ import { MESSAGES_LISTE } from "@/shared/messages";
 // résultat, vide ou d'erreur).
 //
 // - Un vrai formulaire `role="search"` (`GET /demandes`, champs `q`,
-//   `statut`, `categorie`, `canal`) : sans JavaScript, Entrée ouvre
-//   `/demandes?q=…&statut=…`.
+//   `statut`, `categorie`, `canal`, et `a_traiter` caché si « À traiter »
+//   est allumé) : sans JavaScript, Entrée ouvre `/demandes?q=…&statut=…`.
+// - « À traiter » (story 2.2) passe par `filtrer`, comme les autres filtres.
 // - Avec JavaScript : la recherche part 300 ms après la dernière frappe, ou
 //   tout de suite avec Entrée ; un filtre s'applique dès qu'il est choisi.
 //   L'adresse est remplacée (`router.replace`, pas `push` : taper ou essayer
@@ -34,6 +35,11 @@ import { MESSAGES_LISTE } from "@/shared/messages";
 //   resynchronisés si l'adresse change d'ailleurs (« Réinitialiser », bouton
 //   Retour), mais pas quand le serveur répond à ce qu'on vient de lancer (on
 //   aurait pu taper la suite entre-temps).
+// - La carte « N à traiter » (`carte`, story 2.2) est rendue ici, au-dessus
+//   du formulaire : un clic dessus vide la barre tout de suite (comme
+//   « Réinitialiser »), avec le seul filtre « À traiter » ; le lien fait
+//   lui-même la navigation vers `/demandes?a_traiter=oui`, même si l'adresse
+//   est déjà celle-là.
 // - Le nombre de résultats (`annonce`) est lu aux lecteurs d'écran par une
 //   zone `role="status"` toujours présente : une zone insérée avec son texte
 //   n'est souvent pas annoncée.
@@ -46,11 +52,14 @@ export function RechercheDemandes({
   filtres = {},
   categories = null,
   annonce,
+  carte = null,
   children,
 }: {
   q: string;
-  /** Filtres de l'adresse, déjà relus (`lireFiltres`). */
+  /** Filtres de l'adresse, déjà relus (`relireFiltres`). */
   filtres?: FiltresListe;
+  /** Carte « N à traiter », rendue au-dessus du formulaire ; un clic dessus vide la barre (`ouvrirATraiter`). */
+  carte?: ReactNode;
   /** Catégories du filtre Catégorie ; `null` : lecture impossible. */
   categories?: CategorieFiltre[] | null;
   /** Texte annoncé : « 1 demande », « 42 demandes », « Aucune demande trouvée », ou vide. */
@@ -129,8 +138,32 @@ export function RechercheDemandes({
     setEnvoyee(adresseListe());
   }
 
+  /**
+   * Clic sur la carte « N à traiter » : comme `reinitialiser`, mais avec le
+   * seul filtre « À traiter » ; le lien de la carte fait la navigation.
+   */
+  function ouvrirATraiter() {
+    arreterMinuteur();
+    setTexte("");
+    setChoix({ aTraiter: true });
+    setEnvoyee(adresseListe({ aTraiter: true }));
+  }
+
   return (
     <>
+      {carte !== null ? (
+        // Entrée sur le lien donne aussi un clic ; un clic pour un nouvel
+        // onglet (touche ou bouton du milieu) ne touche pas à la barre.
+        <div
+          data-slot="zone-carte"
+          onClickCapture={(evenement) => {
+            if (evenement.button !== 0 || evenement.metaKey || evenement.ctrlKey || evenement.shiftKey || evenement.altKey) return;
+            ouvrirATraiter();
+          }}
+        >
+          {carte}
+        </div>
+      ) : null}
       <form
         role="search"
         action={adresseListe()}

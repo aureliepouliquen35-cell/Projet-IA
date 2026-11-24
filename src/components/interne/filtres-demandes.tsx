@@ -6,15 +6,22 @@ import { Button } from "@/components/ui/button";
 import { NativeSelectOption } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import type { CategorieFiltre } from "@/server/lectures/demandes";
-import { adresseListe, filtreActif, lireFiltres, type FiltresListe } from "@/shared/adresse-liste";
+import {
+  adresseListe,
+  filtreActif,
+  lireFiltres,
+  relireFiltres,
+  VALEUR_A_TRAITER,
+  type FiltresListe,
+} from "@/shared/adresse-liste";
 import { CANAUX, STATUTS } from "@/shared/constantes";
 import { LIBELLES_CANAUX, LIBELLES_STATUTS } from "@/shared/libelles";
 import { MESSAGES_LISTE } from "@/shared/messages";
 
 // Rangée « Filtres » de « Demandes » (I3, FR-13 ; DESIGN.md, Bouton de
 // filtre), sous le champ de recherche et dans le même formulaire `GET` :
-// sans JavaScript, Entrée dans le champ envoie `q`, `statut`, `categorie` et
-// `canal` ensemble.
+// sans JavaScript, Entrée dans le champ envoie `q`, `statut`, `categorie`,
+// `canal` et `a_traiter` ensemble.
 //
 // - Chaque bouton de filtre est la liste déroulante du navigateur, habillée
 //   en bouton de 36 px : étiquette visible « Statut : », valeur en gras
@@ -27,6 +34,13 @@ import { MESSAGES_LISTE } from "@/shared/messages";
 //   désactivées suivies de « (désactivée) » (toujours filtrables). Si les
 //   catégories n'ont pas pu être lues (`categories` vaut `null`), ce seul
 //   bouton est désactivé.
+// - « À traiter » (story 2.2), toujours présent, à droite de « Canal » : un
+//   bouton bascule (`aria-pressed`), même aspect que les autres (gris
+//   inactif ; actif : fond `primary-soft`, bordure et texte bleus), sans
+//   chevron. Un clic l'allume ou l'éteint, appliqué tout de suite comme un
+//   choix. Allumé, un champ caché `a_traiter=oui` le garde dans l'envoi du
+//   formulaire sans JavaScript. Seul le choix est ici : la définition de
+//   « à traiter » est dans la base (AD-5).
 // - « Réinitialiser » (bouton secondaire, à droite) apparaît dès qu'un
 //   filtre est actif : il ouvre `/demandes` (filtres et recherche retirés)
 //   en remplaçant l'adresse, comme un filtre. Au clic, `onReinitialiser`
@@ -45,7 +59,7 @@ function BoutonFiltre({
   children,
 }: {
   /** Nom du paramètre de l'adresse (`statut`, `categorie`, `canal`). */
-  nom: keyof FiltresListe;
+  nom: Exclude<keyof FiltresListe, "aTraiter">;
   libelle: string;
   /** Valeur choisie ; vide : « Tous ». */
   valeur: string;
@@ -93,7 +107,7 @@ export function FiltresDemandes({
   onChange,
   onReinitialiser,
 }: {
-  /** Filtres choisis (déjà relus par `lireFiltres`). */
+  /** Filtres choisis (déjà relus par `relireFiltres`). */
   choix: FiltresListe;
   /** Catégories proposées ; `null` : lecture impossible, bouton Catégorie désactivé. */
   categories: CategorieFiltre[] | null;
@@ -106,8 +120,9 @@ export function FiltresDemandes({
   const actives = categories?.filter((categorie) => categorie.active) ?? [];
   const desactivees = categories?.filter((categorie) => !categorie.active) ?? [];
   /** Remplace un filtre ; une valeur vide (« Tous ») le retire. */
-  const choisir = (nom: keyof FiltresListe) => (valeur: string) =>
-    onChange(lireFiltres({ ...choix, [nom]: valeur }));
+  const choisir = (nom: Exclude<keyof FiltresListe, "aTraiter">) => (valeur: string) =>
+    onChange({ ...relireFiltres({ ...choix, [nom]: undefined }), ...lireFiltres({ [nom]: valeur }) });
+  const aTraiter = choix.aTraiter === true;
 
   return (
     <div
@@ -167,6 +182,20 @@ export function FiltresDemandes({
           </NativeSelectOption>
         ))}
       </BoutonFiltre>
+      <button
+        type="button"
+        data-slot="filtre-a-traiter"
+        data-actif={aTraiter || undefined}
+        aria-pressed={aTraiter}
+        onClick={() => onChange(relireFiltres({ ...choix, aTraiter: aTraiter ? undefined : true }))}
+        className={cn(
+          "inline-flex h-9 cursor-pointer items-center rounded-md border border-border-input bg-background px-3 text-body-sm whitespace-nowrap text-text",
+          aTraiter && "border-primary bg-primary-soft text-primary",
+        )}
+      >
+        {MESSAGES_LISTE.filtreATraiter}
+      </button>
+      {aTraiter ? <input type="hidden" name="a_traiter" value={VALEUR_A_TRAITER} /> : null}
       {filtreActif(choix) ? (
         <Button asChild variant="secondaire" size="sm" className="ml-auto">
           <Link href={adresseListe()} replace onClick={onReinitialiser}>

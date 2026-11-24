@@ -172,6 +172,14 @@ export const MESSAGES_LISTE = {
   titre: "Demandes",
   aTraiter: "à traiter",
   sousTexteATraiter: "Nouvelles",
+  /** Sous-texte de la carte quand rien n'est à traiter : sans félicitations (EXPERIENCE.md, SM-C3). */
+  toutEstAJour: "Tout est à jour",
+  /** Bas de la carte compteur, qui ouvre la liste filtrée (story 2.2). */
+  afficherATraiter: "Afficher ces demandes",
+  /** Nom de la carte pour les lecteurs d'écran : « 5 à traiter, afficher ces demandes ». */
+  nomCarteATraiter: (nombre: string) => `${nombre} à traiter, afficher ces demandes`,
+  /** Même nom quand le compteur n'a pas pu être lu (le tiret « — » n'est pas lu à voix haute). */
+  nomCarteATraiterIndisponible: "Nombre à traiter indisponible, afficher ces demandes",
   /** Le compteur n'a pas pu être lu : un tiret plutôt qu'un chiffre faux. */
   compteurIndisponible: "—",
   legendeTableau: "Demandes, des plus récentes aux plus anciennes",
@@ -206,6 +214,8 @@ export const MESSAGES_LISTE = {
   filtreStatut: "Statut",
   filtreCategorie: "Catégorie",
   filtreCanal: "Canal",
+  /** Bouton bascule de la rangée de filtres (story 2.2), à droite de « Canal ». */
+  filtreATraiter: "À traiter",
   tous: "Tous",
   toutes: "Toutes",
   /** Après le nom d'une catégorie désactivée, dans le filtre Catégorie. */

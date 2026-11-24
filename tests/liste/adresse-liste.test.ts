@@ -7,6 +7,7 @@ import {
   lireFiltres,
   lireRecherche,
   LONGUEUR_MAXIMALE_RECHERCHE,
+  relireFiltres,
 } from "@/shared/adresse-liste";
 import { LONGUEURS_MAXIMALES } from "@/shared/constantes";
 import { MESSAGES_LISTE, nombreDemandes } from "@/shared/messages";
@@ -179,5 +180,52 @@ describe("adresseListe et adresseDetail avec les filtres", () => {
       "Canal",
     ]);
     expect([MESSAGES_LISTE.tous, MESSAGES_LISTE.toutes, MESSAGES_LISTE.desactivee]).toEqual(["Tous", "Toutes", "(désactivée)"]);
+  });
+});
+
+// Filtre « À traiter » (story 2.2 ; FR-14, convention « Adresse de la
+// liste ») : `?a_traiter=oui` seulement, après `canal` et avant `page`.
+
+describe("?a_traiter=oui", () => {
+  it("lu seulement de « oui » (la première valeur s'il y en a plusieurs)", () => {
+    expect(lireFiltres({ a_traiter: "oui" })).toEqual({ aTraiter: true });
+    expect(lireFiltres({ a_traiter: ["oui", "non"] })).toEqual({ aTraiter: true });
+    for (const valeur of ["", "1", "non", "OUI", "oui ", "true", ["non", "oui"], undefined, null]) {
+      expect(lireFiltres({ a_traiter: valeur as string })).toEqual({});
+    }
+    expect(lireFiltres({ aTraiter: "oui" })).toEqual({});
+  });
+
+  it("relireFiltres : garde aTraiter vrai, retire tout le reste d'invalide", () => {
+    expect(relireFiltres({ aTraiter: true, statut: "nouvelle" })).toEqual({ aTraiter: true, statut: "nouvelle" });
+    expect(relireFiltres({ aTraiter: false as unknown as true })).toEqual({});
+    expect(relireFiltres({ aTraiter: "oui" as unknown as true, canal: "fax" as "email" })).toEqual({});
+  });
+
+  it("compté par filtreActif", () => {
+    expect(filtreActif({ aTraiter: true })).toBe(true);
+    expect(filtreActif({ aTraiter: true, q: "x" })).toBe(true);
+    expect(filtreActif({ aTraiter: undefined })).toBe(false);
+  });
+
+  it("écrit a_traiter=oui, après canal et avant page ; jamais une autre valeur", () => {
+    expect(adresseListe({ aTraiter: true })).toBe("/demandes?a_traiter=oui");
+    expect(adresseListe({ page: 2, aTraiter: true, canal: "email", categorie: CATEGORIE, statut: "nouvelle", q: "imprimante" })).toBe(
+      `/demandes?q=imprimante&statut=nouvelle&categorie=${CATEGORIE}&canal=email&a_traiter=oui&page=2`,
+    );
+    expect(adresseDetail("NOVA-2026-0042", { aTraiter: true, page: 3 })).toBe("/demandes/NOVA-2026-0042?a_traiter=oui&page=3");
+    expect(adresseListe({ aTraiter: false as unknown as true })).toBe("/demandes");
+  });
+
+  it("se relit tel quel depuis l'adresse", () => {
+    const adresse = new URL(adresseListe({ q: "a", canal: "email", aTraiter: true }), "https://nova.example");
+    expect(lireFiltres(Object.fromEntries(adresse.searchParams))).toEqual({ canal: "email", aTraiter: true });
+  });
+
+  it("textes (EXPERIENCE.md, I3)", () => {
+    expect(MESSAGES_LISTE.filtreATraiter).toBe("À traiter");
+    expect(MESSAGES_LISTE.toutEstAJour).toBe("Tout est à jour");
+    expect(MESSAGES_LISTE.afficherATraiter).toBe("Afficher ces demandes");
+    expect(MESSAGES_LISTE.nomCarteATraiter("5")).toBe("5 à traiter, afficher ces demandes");
   });
 });

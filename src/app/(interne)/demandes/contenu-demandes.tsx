@@ -7,17 +7,19 @@ import { RechercheDemandes } from "@/components/interne/recherche-demandes";
 import { TableauDemandes } from "@/components/interne/tableau-demandes";
 import { exigerUtilisateur } from "@/server/garde";
 import { compterATraiter, lireCategoriesFiltre, lireListeDemandes, lirePage } from "@/server/lectures/demandes";
-import { filtreActif, lireFiltres, lireRecherche, type FiltresListe } from "@/shared/adresse-liste";
+import { filtreActif, lireFiltres, lireRecherche, relireFiltres, type FiltresListe } from "@/shared/adresse-liste";
 import { MESSAGES_LISTE, nombreDemandes } from "@/shared/messages";
 
 // Contenu de « Demandes » (I3). Comme toute lecture interne, il vérifie
 // d'abord la personne connectée (AD-7) : sans session, ou avec un compte
 // inactif, renvoi vers la connexion.
 //
-// Puis : la carte « à traiter » (« — » si le compteur n'a pas pu être lu),
-// la barre de recherche (`?q=`, FR-12) et ses filtres (`?statut=`,
-// `?categorie=`, `?canal=`, FR-13 ; bouton Catégorie désactivé si les
-// catégories n'ont pas pu être lues), et sous elle, selon le cas :
+// Puis : la carte « à traiter » (« — » si le compteur n'a pas pu être lu ;
+// un lien vers `?a_traiter=oui`, story 2.2 ; rendue par la barre, que son
+// clic vide), la barre de recherche (`?q=`,
+// FR-12) et ses filtres (`?statut=`, `?categorie=`, `?canal=`, FR-13 ;
+// `?a_traiter=oui`, FR-14 ; bouton Catégorie désactivé si les catégories
+// n'ont pas pu être lues), et sous elle, selon le cas :
 //   - la ligne « 42 demandes » (annoncée par la zone `role="status"` de la
 //     barre, toujours présente), le tableau (dont chaque ligne ouvre le
 //     détail en gardant `q`, les filtres et `page`) et sa pagination (qui
@@ -38,7 +40,7 @@ export type ParametresAdresse = Record<string, string | string[] | undefined>;
  */
 function filtresAppliques(filtres: FiltresListe, categories: { id: string }[] | null): FiltresListe {
   if (!filtres.categorie || !categories || categories.some(({ id }) => id === filtres.categorie)) return filtres;
-  return lireFiltres({ ...filtres, categorie: undefined });
+  return relireFiltres({ ...filtres, categorie: undefined });
 }
 
 export async function ContenuDemandes({ searchParams }: { searchParams: Promise<ParametresAdresse> }) {
@@ -71,8 +73,13 @@ export async function ContenuDemandes({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="flex flex-col gap-5">
-      <CarteATraiter nombre={compteur.ok ? compteur.donnees : null} />
-      <RechercheDemandes q={q} filtres={filtres} categories={categories} annonce={annonce}>
+      <RechercheDemandes
+        q={q}
+        filtres={filtres}
+        categories={categories}
+        annonce={annonce}
+        carte={<CarteATraiter nombre={compteur.ok ? compteur.donnees : null} />}
+      >
         {!liste.ok ? (
           <EtatListeErreur />
         ) : liste.donnees.total === 0 ? (

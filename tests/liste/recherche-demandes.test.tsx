@@ -162,7 +162,7 @@ describe("résultats", () => {
     expect(annonce(html)).toBe("Aucune demande trouvée");
     // Lu une fois dans la zone d'annonce (invisible), une fois à l'écran.
     expect(texteDe(sansFiltres(html))).toBe(
-      "5 à traiter Nouvelles Aucune demande trouvée Aucune demande trouvée Vérifiez l'orthographe ou retirez des filtres. Réinitialiser",
+      "5 à traiter Nouvelles Afficher ces demandes Aucune demande trouvée Aucune demande trouvée Vérifiez l'orthographe ou retirez des filtres. Réinitialiser",
     );
     expect(bouton(html, "Réinitialiser")).toMatch(/^<a[^>]*href="\/demandes"[^>]*data-variant="secondaire"|^<a[^>]*data-variant="secondaire"[^>]*href="\/demandes"/);
     // La barre reste là, avec le texte cherché.
@@ -200,7 +200,7 @@ describe("autres états", () => {
   it("base vide, sans q : message « Aucune demande pour le moment… » et le bouton de saisie (story 2.3)", async () => {
     const html = await ecran();
     expect(texteDe(sansFiltres(html))).toBe(
-      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
+      "0 à traiter Tout est à jour Afficher ces demandes Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
     );
     expect(annonce(html)).toBe("");
   });
@@ -214,7 +214,7 @@ describe("autres états", () => {
     remplir();
     simulation.pannesRpc.lister_demandes = { data: null, error: { code: "57P01", message: "x" } };
     const html = await ecran({ q: "Hélène Dupuis" });
-    expect(texteDe(sansFiltres(html))).toBe("5 à traiter Nouvelles Impossible de charger les demandes. Réessayer");
+    expect(texteDe(sansFiltres(html))).toBe("5 à traiter Nouvelles Afficher ces demandes Impossible de charger les demandes. Réessayer");
     expect(champ(html)).toContain('value="Hélène Dupuis"');
     expect(champ(html)).not.toMatch(/ disabled[ =/>]/);
     expect(annonce(html)).toBe("");

@@ -70,7 +70,7 @@ describe("accueil : 5 Nouvelle sur 42", () => {
 
   it("carte « 5 à traiter », sous-texte « Nouvelles »", async () => {
     const html = await ecran();
-    expect(texteDe(html)).toMatch(/^5 à traiter Nouvelles /);
+    expect(texteDe(html)).toMatch(/^5 à traiter Nouvelles Afficher ces demandes /);
     expect(html).toMatch(/data-slot="nombre-a-traiter"[^>]*>5</);
   });
 
@@ -153,7 +153,7 @@ describe("autres situations", () => {
   it("base vide : « 0 à traiter » et le message vide à la place du tableau, avec « Saisir une demande reçue par téléphone »", async () => {
     const html = await ecran();
     expect(texteDe(sansFiltres(html))).toBe(
-      "0 à traiter Nouvelles Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
+      "0 à traiter Tout est à jour Afficher ces demandes Aucune demande pour le moment. Les demandes déposées sur le formulaire apparaîtront ici. Saisir une demande reçue par téléphone",
     );
     expect(html).toMatch(/<a[^>]*href="\/demandes\/nouvelle"[^>]*>Saisir une demande reçue par téléphone<\/a>/);
     expect(html).not.toContain("<table");
@@ -165,7 +165,7 @@ describe("autres situations", () => {
     simulation.pannesRpc.lister_demandes = { data: null, error: { code: "57P01", message: "x" } };
     simulation.pannesRpc.compter_a_traiter = { data: null, error: { code: "57P01", message: "x" } };
     const html = await ecran();
-    expect(texteDe(sansFiltres(html))).toBe("— à traiter Nouvelles Impossible de charger les demandes. Réessayer");
+    expect(texteDe(sansFiltres(html))).toBe("— à traiter Nouvelles Afficher ces demandes Impossible de charger les demandes. Réessayer");
     expect(html).not.toContain("<table");
     const journal = simulation.journal().map((l) => l.evenement);
     expect(journal).toEqual(["erreur_inattendue", "erreur_inattendue"]);
@@ -202,8 +202,8 @@ describe("composants", () => {
   });
 
   it("carte : nombre écrit à la française, « — » si inconnu", () => {
-    expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={1234} />))).toBe("1 234 à traiter Nouvelles");
-    expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={null} />))).toBe("— à traiter Nouvelles");
+    expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={1234} />))).toBe("1 234 à traiter Nouvelles Afficher ces demandes");
+    expect(texteDe(renderToStaticMarkup(<CarteATraiter nombre={null} />))).toBe("— à traiter Nouvelles Afficher ces demandes");
   });
 
   it("pagination : la ligne de résumé", () => {

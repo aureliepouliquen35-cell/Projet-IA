@@ -277,13 +277,13 @@ describe("journal (AD-12, AD-13) : ni le texte cherché ni les filtres", () => {
 });
 
 describe("rangée de filtres (DESIGN.md, Bouton de filtre ; accessibilité)", () => {
-  it("sous le champ, dans le même formulaire GET : icône « curseurs » devant « Filtres », puis Statut, Catégorie, Canal", async () => {
+  it("sous le champ, dans le même formulaire GET : icône « curseurs » devant « Filtres », puis Statut, Catégorie, Canal (et « À traiter », story 2.2)", async () => {
     const html = await ecran();
     const formulaire = html.match(/<form role="search" action="\/demandes" method="get">.*?<\/form>/)?.[0] ?? "";
     expect(formulaire.indexOf('name="q"')).toBeLessThan(formulaire.indexOf('data-slot="filtres"'));
     expect(formulaire).toMatch(/<div data-slot="filtres" role="group" aria-labelledby="([^"]+)"[^>]*><span id="\1"[^>]*><svg[^>]*lucide-sliders-horizontal[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Filtres<\/span>/);
     expect([...formulaire.matchAll(/<select[^>]*name="(\w+)"/g)].map(([, nom]) => nom)).toEqual(["statut", "categorie", "canal"]);
-    expect(texteDe(formulaire)).toMatch(/^Filtres Statut : Tous Nouvelle En cours Traitée Catégorie : Toutes .* Canal : Tous Formulaire Téléphone Email$/);
+    expect(texteDe(formulaire)).toMatch(/^Filtres Statut : Tous Nouvelle En cours Traitée Catégorie : Toutes .* Canal : Tous Formulaire Téléphone Email À traiter$/);
     // Pas de filtres Should (epic 6).
     expect(texteDe(html)).not.toMatch(/Priorité|Attribution|Sans activité/);
   });

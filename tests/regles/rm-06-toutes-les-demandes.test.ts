@@ -49,9 +49,10 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
     },
   );
 
-  it("la version en vigueur de lister_demandes est celle des filtres (story 2.1), avec la recherche (story 1.9)", () => {
+  it("la version en vigueur de lister_demandes est celle du filtre « À traiter » (story 2.2), avec les filtres (2.1) et la recherche (1.9)", () => {
     expect(corps("lister_demandes")).toContain("v_q := public.normaliser_recherche(v_q);");
     expect(corps("lister_demandes")).toContain("v_statut := case when p_statut in");
+    expect(corps("lister_demandes")).toContain("v_a_traiter boolean := coalesce(p_a_traiter, false);");
   });
 
   it("lister_categories ne filtre selon personne", () => {
@@ -64,12 +65,13 @@ describe("RM-6 : tout utilisateur interne voit toutes les demandes", () => {
   it("la liste compte les demandes de la table, sans autre condition que les filtres et la recherche", () => {
     const condition =
       corps("lister_demandes").match(/select count\(\*\)::integer\s+into v_total\s+from public\.demandes d\s+where ([\s\S]*?);/)?.[1] ?? "";
-    // Filtres de la story 2.1, puis la recherche de la story 1.9.
-    const [statut, categorie, canal, recherche = ""] = condition.split(/\s+and\s+/).map((partie) => partie.trim());
-    expect([statut, categorie, canal]).toEqual([
+    // Filtres de la story 2.1, « À traiter » (story 2.2), puis la recherche de la story 1.9.
+    const [statut, categorie, canal, aTraiter, recherche = ""] = condition.split(/\s+and\s+/).map((partie) => partie.trim());
+    expect([statut, categorie, canal, aTraiter]).toEqual([
       "(v_statut is null or d.statut = v_statut)",
       "(v_categorie is null or d.categorie_id = v_categorie)",
       "(v_canal is null or d.canal = v_canal)",
+      "(not v_a_traiter or d.a_traiter)",
     ]);
     const lignes = recherche.replace(/^\(|\)$/g, "").split(/\s+or\s+/).map((ligne) => ligne.trim());
     expect(lignes[0]).toBe("v_q = ''");

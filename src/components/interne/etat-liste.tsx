@@ -81,7 +81,7 @@ export function SqueletteListe() {
   return (
     <div data-slot="squelette" role="status" className="animate-apres-300ms flex flex-col gap-5">
       <span className="sr-only">{MESSAGES_LISTE.chargement}</span>
-      <div className="h-28 w-full max-w-56 rounded-lg bg-border" />
+      <div className="h-36 w-full max-w-56 rounded-lg bg-border" />
       <div className="rounded-lg border bg-background px-3 shadow-soft">
         {Array.from({ length: LIGNES_SQUELETTE }, (_, index) => (
           <div

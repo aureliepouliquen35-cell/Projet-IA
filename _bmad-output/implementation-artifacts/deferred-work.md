@@ -74,3 +74,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-saisir-demande-telephone-email.md`
   summary: Exécuter vraiment les fonctions SQL (refus NV001/NV002/NV401 et rejeu du numéro d'envoi de `saisir_demande`, comme celles des stories précédentes) dans les tests automatiques, et non plus seulement leur texte.
   evidence: `npm test` ne lit que le texte des migrations et une simulation qui recode les règles ; seul le parcours e2e manuel sur dev appelle la vraie base. Il faudrait un banc de base de données (Postgres local ou équivalent).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-retrouver-autres-demandes-demandeur.md`
+  summary: « Voir ses autres demandes » montre aussi les demandes dont l'email (ou le nom, l'entreprise, l'objet) contient celui du demandeur (`anne@x.fr` trouve `marianne@x.fr`) ; une recherche sur l'email exact demanderait un nouveau paramètre d'adresse.
+  evidence: la recherche FR-12 cherche un texte contenu (`strpos`) ; l'adresse de la liste a des paramètres fixes (architecture), d'où le report ; test « limite connue » dans `tests/regles/fr-12-recherche.test.ts`.

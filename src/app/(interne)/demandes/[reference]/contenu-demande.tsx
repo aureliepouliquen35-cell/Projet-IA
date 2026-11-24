@@ -1,4 +1,5 @@
-import { Clock, Info, MessageSquare, User } from "lucide-react";
+import { Clock, Info, MessageSquare, Search, User } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
@@ -26,7 +27,8 @@ import type { ParametresAdresse } from "../contenu-demandes";
 // en titre, badge de statut. Puis, à partir de 1 024 px, deux colonnes :
 //   - à gauche, les blocs Demande (description en texte simple, retours à
 //     la ligne gardés : React l'échappe, jamais de HTML, NFR-11), Demandeur
-//     (email en `mailto:`, téléphone en `tel:`), Informations et Historique ;
+//     (email en `mailto:`, téléphone en `tel:`, lien « Voir ses autres
+//     demandes », story 2.4), Informations et Historique ;
 //   - à droite, le panneau « Statut » : le statut actuel et les boutons des
 //     seuls passages permis (`ActionsStatut`, story 1.11).
 // En dessous de 1 024 px, une colonne : le panneau vient sous l'en-tête.
@@ -34,7 +36,7 @@ import type { ParametresAdresse } from "../contenu-demandes";
 // *Traitée*.
 //
 // Ni priorité (FR-19), ni attribution, ni commentaires, ni zone
-// administrateur, ni « Voir ses autres demandes » : stories à venir.
+// administrateur : stories à venir.
 
 const CARTE = "rounded-lg border bg-background p-6 shadow-soft";
 const LISTE_CHAMPS = "grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-body-sm";
@@ -101,6 +103,25 @@ function Demandeur({ demande }: { demande: DetailDemande }) {
   );
 }
 
+/**
+ * Lien « Voir ses autres demandes » (story 2.4, FR-12) : la liste avec la
+ * seule recherche sur l'email du demandeur, sans filtre ni page (un filtre
+ * de la liste d'où l'on vient cacherait une partie de ses demandes), donc
+ * toutes ses demandes quel que soit leur statut, celle-ci comprise.
+ */
+function AutresDemandes({ email }: { email: string }) {
+  return (
+    <Link
+      href={adresseListe({ q: email })}
+      data-slot="autres-demandes"
+      className={`${LIEN} mt-2 inline-flex min-h-11 items-center gap-1.5 text-body-sm font-medium`}
+    >
+      <Search aria-hidden="true" className="size-4 shrink-0" />
+      {MESSAGES_DETAIL.autresDemandes}
+    </Link>
+  );
+}
+
 export async function ContenuDemande({
   params,
   searchParams,
@@ -161,6 +182,7 @@ export async function ContenuDemande({
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <Bloc icone={<User />} titre={MESSAGES_DETAIL.blocDemandeur}>
               <Demandeur demande={demande} />
+              <AutresDemandes email={demande.email} />
             </Bloc>
             <Bloc icone={<Info />} titre={MESSAGES_DETAIL.blocInformations}>
               <dl className={LISTE_CHAMPS}>

@@ -18,6 +18,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient 
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
 import { lireListeDemandes } from "@/server/lectures/demandes";
+import { adresseListe, lireRecherche } from "@/shared/adresse-liste";
 
 import { fabriquerDemandes, ID_KARIM, type DemandeSimulee } from "../aides/supabase-connexion";
 
@@ -140,4 +141,63 @@ describe("FR-12 : retrouver une demande par la recherche", () => {
     }
     expect(SQL).toContain("lower(extensions.unaccent(");
   });
+});
+
+// Story 2.4 : taper l'email d'un demandeur (ou suivre « Voir ses autres
+// demandes » depuis le détail) affiche toutes ses demandes, quel que soit
+// leur statut. C'est ainsi qu'on repère les doublons (pas de détection
+// automatique en v1).
+describe("FR-12 / story 2.4 : l'email d'un demandeur trouve toutes ses demandes", () => {
+  const EMAIL = "paul.rousseau@rousseau-btp.fr";
+
+  /** 20 demandes fictives, dont 3 de Paul : Nouvelle, En cours, Traitée. */
+  function remplirPaul() {
+    const demandes = fabriquerDemandes(20);
+    for (const [index, statut] of [[2, "nouvelle"], [9, "en_cours"], [15, "traitee"]] as const) {
+      demandes[index] = { ...demandes[index], nom: "Paul Rousseau", email: EMAIL, statut };
+    }
+    simulation.demandes.push(...demandes);
+  }
+
+  beforeEach(remplirPaul);
+
+  it.each([EMAIL, EMAIL.toUpperCase(), `  ${EMAIL}  `])(
+    "« %s » : ses 3 demandes (Nouvelle, En cours, Traitée), et seulement elles",
+    async (q) => {
+      await expect(chercher(q)).resolves.toMatchObject({
+        total: 3,
+        references: ["NOVA-2026-0018", "NOVA-2026-0011", "NOVA-2026-0005"],
+      });
+    },
+  );
+
+  it("limite connue : un email qui contient le sien (jean.paul.rousseau@…) est aussi trouvé", async () => {
+    // La recherche de FR-12 cherche un texte contenu, pas un email exact :
+    // ces lignes en plus se distinguent par le nom affiché dans la liste.
+    simulation.demandes[0] = { ...simulation.demandes[0], nom: "Jean Rousseau", email: `jean.${EMAIL}` };
+    await expect(chercher(EMAIL)).resolves.toMatchObject({
+      total: 4,
+      references: ["NOVA-2026-0020", "NOVA-2026-0018", "NOVA-2026-0011", "NOVA-2026-0005"],
+    });
+  });
+
+  it("le lien « Voir ses autres demandes » (adresse de la liste) mène à la même recherche", async () => {
+    const adresse = new URL(adresseListe({ q: EMAIL }), "http://localhost");
+    expect(adresse.pathname).toBe("/demandes");
+    expect([...adresse.searchParams.keys()]).toEqual(["q"]);
+    await expect(chercher(lireRecherche(adresse.searchParams.get("q")))).resolves.toMatchObject({ total: 3 });
+  });
+
+  it.each(["anne+devis@exemple.fr", "a&b=c@exemple.fr", "o'brien@exemple.fr"])(
+    "email avec caractères spéciaux (« %s ») : retrouvé tel quel par le lien",
+    async (email) => {
+      simulation.demandes[0] = { ...simulation.demandes[0], email };
+      const adresse = new URL(adresseListe({ q: email }), "http://localhost");
+      expect(adresse.searchParams.get("q")).toBe(email);
+      await expect(chercher(lireRecherche(adresse.searchParams.get("q")))).resolves.toMatchObject({
+        total: 1,
+        references: [simulation.demandes[0].reference],
+      });
+    },
+  );
 });

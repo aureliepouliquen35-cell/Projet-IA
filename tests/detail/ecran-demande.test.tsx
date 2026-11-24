@@ -101,11 +101,10 @@ describe("demande existante (NOVA-2026-0042)", () => {
   it("bloc Demandeur : nom, email en mailto:, « Non renseigné », entreprise", async () => {
     const demandeur = bloc(await ecran(), "Demandeur");
     expect(texteDe(demandeur)).toBe(
-      "Demandeur Nom Claire Martin Email claire.martin@cabinet-martin.fr Téléphone Non renseigné Entreprise Cabinet Martin Expertise",
+      "Demandeur Nom Claire Martin Email claire.martin@cabinet-martin.fr Téléphone Non renseigné Entreprise Cabinet Martin Expertise Voir ses autres demandes",
     );
     expect(demandeur).toMatch(/<a href="mailto:claire\.martin@cabinet-martin\.fr"[^>]*>claire\.martin@cabinet-martin\.fr<\/a>/);
     expect(demandeur).not.toContain("tel:");
-    expect(texteDe(demandeur)).not.toMatch(/Voir ses autres demandes/);
   });
 
   it("téléphone en tel: ; entreprise absente : « Non renseignée »", async () => {
@@ -344,5 +343,53 @@ describe("liste : chaque ligne ouvre le détail", () => {
   it("la liste n'affiche toujours ni email ni téléphone", async () => {
     const html = renderToStaticMarkup(await ContenuDemandes({ searchParams: Promise.resolve({}) }));
     expect(html).not.toMatch(/@|mailto:|tel:/);
+  });
+});
+
+/** Le lien « Voir ses autres demandes » du bloc Demandeur (story 2.4) : [balise, href, contenu]. */
+function lienAutres(html: string) {
+  const trouve = bloc(html, "Demandeur").match(/<a ([^>]*data-slot="autres-demandes"[^>]*)>(.*?)<\/a>/);
+  if (!trouve) return null;
+  const href = trouve[1].match(/href="([^"]*)"/)?.[1] ?? "";
+  return { balise: trouve[1], adresse: new URL(href.replace(/&amp;/g, "&"), "http://localhost"), contenu: trouve[2] };
+}
+
+describe("« Voir ses autres demandes » (story 2.4, FR-12)", () => {
+  it("dans le bloc Demandeur, sous les champs : la liste cherchée sur son email", async () => {
+    const lien = lienAutres(await ecran());
+    expect(lien).not.toBeNull();
+    expect(texteDe(lien!.contenu)).toBe("Voir ses autres demandes");
+    expect(lien!.adresse.pathname).toBe("/demandes");
+    expect(Object.fromEntries(lien!.adresse.searchParams)).toEqual({ q: "claire.martin@cabinet-martin.fr" });
+  });
+
+  it("venu d'une liste filtrée (q, statut, catégorie, canal, à traiter, page 2) : seulement l'email, ni filtre ni page", async () => {
+    const lien = lienAutres(
+      await ecran("NOVA-2026-0042", {
+        q: "helene",
+        statut: "nouvelle",
+        categorie: "11111111-1111-4111-8111-111111111111",
+        canal: "telephone",
+        a_traiter: "oui",
+        page: "2",
+      }),
+    );
+    expect(Object.fromEntries(lien!.adresse.searchParams)).toEqual({ q: "claire.martin@cabinet-martin.fr" });
+  });
+
+  it.each(["anne+devis@exemple.fr", "a@b.fr?cc=x@y.fr&body=z", "O'Brien@Exemple.fr"])(
+    "email avec caractères spéciaux (« %s ») : encodé dans l'adresse, retrouvé tel quel",
+    async (email) => {
+      simulation.demandes[0] = { ...CLAIRE, email };
+      expect(lienAutres(await ecran())!.adresse.searchParams.get("q")).toBe(email);
+    },
+  );
+
+  it("vrai lien de 44 px de haut, en bleu souligné, loupe décorative", async () => {
+    const lien = lienAutres(await ecran())!;
+    expect(lien.balise).toMatch(/min-h-11/);
+    expect(lien.balise).toMatch(/text-primary/);
+    expect(lien.balise).toMatch(/\bunderline\b/);
+    expect(lien.contenu).toMatch(/^<svg[^>]*aria-hidden="true"/);
   });
 });

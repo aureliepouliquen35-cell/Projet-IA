@@ -298,6 +298,8 @@ export const MESSAGES_DETAIL = {
   nonRenseigne: "Non renseigné",
   /** Entreprise absente. */
   nonRenseignee: "Non renseignée",
+  /** Lien du bloc Demandeur vers la liste cherchée sur son email (story 2.4). */
+  autresDemandes: "Voir ses autres demandes",
   introuvable: "Cette demande n'existe pas ou a été supprimée.",
   retourAuxDemandes: "Retour aux demandes",
   chargement: "Chargement…",

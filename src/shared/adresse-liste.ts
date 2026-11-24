@@ -10,6 +10,12 @@
 //   (on n'y passe pas `page`) ; la pagination garde `q` et les filtres.
 // - Le lien d'une ligne vers le détail (I4) garde `q`, les filtres et `page`
 //   (`adresseDetail`) : le fil d'Ariane ramène à la même liste.
+// - « Voir ses autres demandes » (détail I4, story 2.4) ouvre
+//   `adresseListe({ q: email })` : la seule recherche sur l'email du
+//   demandeur, sans les filtres ni la page de la liste d'où l'on vient (un
+//   filtre cacherait une partie de ses demandes). Le retour à cette liste-là
+//   passe par le bouton Retour du navigateur. La recherche trouve tout texte
+//   qui *contient* l'email : `anne@x.fr` montre aussi `marianne@x.fr`.
 // - Valeurs permises : codes fermés pour `statut` (`STATUTS`) et `canal`
 //   (`CANAUX`), identifiant (UUID) pour `categorie`, `oui` seulement pour
 //   `a_traiter` (story 2.2 : la carte « N à traiter » ouvre

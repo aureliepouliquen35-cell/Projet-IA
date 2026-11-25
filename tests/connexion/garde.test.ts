@@ -12,7 +12,8 @@ vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creer
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 
-import { exigerUtilisateur, lireUtilisateur } from "@/server/garde";
+import { exigerAdministrateur, exigerChangementMotDePasse, exigerUtilisateur, lireUtilisateur } from "@/server/garde";
+import { COOKIE_MESSAGE_CONNEXION, dechiffrerPassage } from "@/server/passage";
 
 import { ID_KARIM } from "../aides/supabase-connexion";
 
@@ -115,5 +116,62 @@ describe("exigerUtilisateur", () => {
     expect(await renvoi()).toMatchObject({
       digest: expect.stringMatching(/^NEXT_REDIRECT;\w+;\/connexion;/),
     });
+  });
+});
+
+describe("compte désactivé pendant la session (FR-22, story 3.4)", () => {
+  beforeEach(() => {
+    simulation.session.id = ID_KARIM;
+    simulation.profils.get(ID_KARIM)!.actif = false;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  const message = () => {
+    const cookie = simulation.cookiesPoses.get(COOKIE_MESSAGE_CONNEXION);
+    return cookie ? dechiffrerPassage(COOKIE_MESSAGE_CONNEXION, cookie.valeur) : null;
+  };
+
+  it("lireUtilisateur garde son contrat : null, sans fermer la session", async () => {
+    await expect(lireUtilisateur()).resolves.toBeNull();
+    expect(simulation.signOut).not.toHaveBeenCalled();
+    expect(simulation.cookiesPoses.size).toBe(0);
+  });
+
+  it.each([
+    ["exigerUtilisateur", () => exigerUtilisateur()],
+    ["exigerAdministrateur", () => exigerAdministrateur()],
+    ["exigerChangementMotDePasse", () => exigerChangementMotDePasse()],
+  ])("%s : session fermée, message « session terminée », renvoi vers /connexion", async (_, garde) => {
+    await expect(garde()).rejects.toMatchObject({ digest: expect.stringMatching(/^NEXT_REDIRECT;\w+;\/connexion;/) });
+    expect(simulation.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(simulation.session.id).toBeNull();
+    expect(message()).toEqual({ type: "message_connexion", message: "session_terminee" });
+    expect(simulation.cookiesPoses.get(COOKIE_MESSAGE_CONNEXION)?.options).toMatchObject({
+      httpOnly: true,
+      path: "/connexion",
+    });
+  });
+
+  it("pendant le rendu d'une page (cookie impossible à écrire) : renvoi quand même vers /connexion", async () => {
+    simulation.cookies.mockImplementationOnce(async () => ({
+      get: () => undefined,
+      set: () => {
+        throw new Error("Cookies can only be modified in a Server Action or Route Handler.");
+      },
+    }));
+    await expect(exigerUtilisateur()).rejects.toMatchObject({ digest: expect.stringMatching(/\/connexion;/) });
+  });
+
+  it("Auth injoignable à la fermeture : renvoi quand même, message posé", async () => {
+    simulation.signOut.mockRejectedValueOnce(new Error("fetch failed"));
+    await expect(exigerUtilisateur()).rejects.toMatchObject({ digest: expect.stringMatching(/\/connexion;/) });
+    expect(message()).toMatchObject({ message: "session_terminee" });
+  });
+
+  it("sans profil : renvoi sans message ni fermeture", async () => {
+    simulation.profils.clear();
+    await expect(exigerUtilisateur()).rejects.toMatchObject({ digest: expect.stringMatching(/\/connexion;/) });
+    expect(simulation.signOut).not.toHaveBeenCalled();
+    expect(message()).toBeNull();
   });
 });

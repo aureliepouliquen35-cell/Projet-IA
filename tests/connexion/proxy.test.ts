@@ -15,13 +15,17 @@ const simulation = vi.hoisted(() => ({
   sub: null as string | null,
   /** Cookies que le rafraîchissement de la session pose (setAll). */
   cookiesRafraichis: [] as { name: string; value: string; options: Record<string, unknown> }[],
-  /** Profil lu par le proxy (`doit_changer_mdp`), ou panne. */
-  profil: { doit_changer_mdp: false } as { doit_changer_mdp: unknown } | null,
+  /** Profil lu par le proxy (`actif`, `doit_changer_mdp`), ou panne. */
+  profil: { doit_changer_mdp: false } as { actif?: unknown; doit_changer_mdp: unknown } | null,
   erreurProfil: null as { code: string; message: string } | null,
   /** Appels de `signOut`, et panne éventuelle. */
   signOut: [] as unknown[],
   signOutLeve: false,
   lecturesProfil: 0,
+  /** Erreur renvoyée par `getClaims` sans session (renouvellement refusé), ou rien. */
+  erreurSession: null as { code: string; message: string; status: number } | null,
+  /** Colonnes demandées à chaque lecture de `profils`. */
+  colonnesLues: [] as string[],
 }));
 
 vi.mock("@supabase/ssr", () => ({
@@ -44,7 +48,7 @@ vi.mock("@supabase/ssr", () => ({
         }
         return simulation.sub
           ? { data: { claims: { sub: simulation.sub } }, error: null }
-          : { data: null, error: null };
+          : { data: null, error: simulation.erreurSession };
       },
       signOut: async (options: unknown) => {
         simulation.signOut.push(options);
@@ -61,12 +65,22 @@ vi.mock("@supabase/ssr", () => ({
     from: (table: string) => {
       if (table !== "profils") throw new Error(`Table inattendue : ${table}`);
       return {
-        select: () => ({
+        select: (colonnes: string) => ({
           eq: () => ({
             abortSignal: () => ({
               maybeSingle: async () => {
                 simulation.lecturesProfil += 1;
-                return { data: simulation.erreurProfil ? null : simulation.profil, error: simulation.erreurProfil };
+                simulation.colonnesLues.push(colonnes);
+                if (simulation.erreurProfil || !simulation.profil) {
+                  return { data: null, error: simulation.erreurProfil };
+                }
+                // Seulement les colonnes demandées, comme PostgREST.
+                const profil = simulation.profil as Record<string, unknown>;
+                const lues = colonnes.split(",").map((colonne) => colonne.trim());
+                return {
+                  data: Object.fromEntries(lues.filter((c) => c in profil).map((c) => [c, profil[c]])),
+                  error: null,
+                };
               },
             }),
           }),
@@ -119,6 +133,8 @@ beforeEach(() => {
   simulation.signOut = [];
   simulation.signOutLeve = false;
   simulation.lecturesProfil = 0;
+  simulation.erreurSession = null;
+  simulation.colonnesLues = [];
 });
 
 afterEach(() => {
@@ -337,6 +353,101 @@ describe("plus de 8 h sans activité", () => {
 
   it("dans les 8 h : rien n'est fermé", async () => {
     const reponse = await proxy(requeteConnectee("/demandes", { activite: valeurActivite(Date.now() - DUREE_INACTIVITE_MS + 60 * 1000) }));
+    expect(reponse.status).toBe(200);
+    expect(simulation.signOut).toEqual([]);
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
+  });
+});
+
+describe("compte désactivé pendant la session (FR-22, story 3.4)", () => {
+  beforeEach(() => {
+    simulation.sub = ID;
+    simulation.profil = { actif: false, doit_changer_mdp: false };
+  });
+
+  it.each(["/demandes", "/demandes/NOVA-2026-0001", "/admin/comptes", "/connexion/nouveau-mot-de-passe"])(
+    "%s : session fermée, /connexion avec le message « session terminée »",
+    async (chemin) => {
+      const reponse = await proxy(requeteConnectee(chemin));
+      expect(reponse.status).toBe(307);
+      expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+      expect(reponse.headers.get("cache-control")).toBe(CACHE_PAGES_INTERNES);
+      expect(simulation.signOut).toEqual([{ scope: "local" }]);
+      expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+      expect(reponse.cookies.get(COOKIE_ACTIVITE)).toMatchObject({ value: "", maxAge: 0 });
+      const message = reponse.cookies.get(COOKIE_MESSAGE_CONNEXION);
+      expect(message).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/connexion", maxAge: 30 * 60 });
+      expect(dechiffrerPassage(COOKIE_MESSAGE_CONNEXION, message!.value)).toEqual({
+        type: "message_connexion",
+        message: "session_terminee",
+      });
+      // Une seule lecture du profil, qui demande bien `actif`.
+      expect(simulation.colonnesLues).toHaveLength(1);
+      expect(simulation.colonnesLues[0].split(",").map((c) => c.trim())).toContain("actif");
+    },
+  );
+
+  it("jeton expiré, renouvellement refusé par Auth (compte bloqué, user_banned) : même fin de session avec le message", async () => {
+    simulation.sub = null;
+    simulation.erreurSession = { code: "user_banned", message: "User is banned", status: 403 };
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(simulation.signOut).toEqual([{ scope: "local" }]);
+    expect(reponse.cookies.get(COOKIE_SESSION)).toMatchObject({ value: "", maxAge: 0 });
+    expect(reponse.cookies.get(COOKIE_ACTIVITE)).toMatchObject({ value: "", maxAge: 0 });
+    const message = reponse.cookies.get(COOKIE_MESSAGE_CONNEXION);
+    expect(dechiffrerPassage(COOKIE_MESSAGE_CONNEXION, message!.value)).toEqual({
+      type: "message_connexion",
+      message: "session_terminee",
+    });
+    expect(simulation.lecturesProfil).toBe(0);
+  });
+
+  it("user_banned sur une Server Function : pas de renvoi HTTP, rien n'est posé (la garde décidera)", async () => {
+    simulation.sub = null;
+    simulation.erreurSession = { code: "user_banned", message: "User is banned", status: 403 };
+    const reponse = await proxy(requeteConnectee("/demandes", { action: true }));
+    expect(reponse.status).toBe(200);
+    expect(simulation.signOut).toEqual([]);
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
+  });
+
+  it("autre erreur de session (jeton de renouvellement invalide) : renvoi vers /connexion, sans message ni fermeture", async () => {
+    simulation.sub = null;
+    simulation.erreurSession = { code: "refresh_token_not_found", message: "Invalid Refresh Token", status: 400 };
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(simulation.signOut).toEqual([]);
+    expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
+  });
+
+  it("même si le mot de passe temporaire était encore à choisir", async () => {
+    simulation.profil = { actif: false, doit_changer_mdp: true };
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(simulation.signOut).toHaveLength(1);
+  });
+
+  it("le message ne dit pas pourquoi et n'est jamais dans l'adresse", async () => {
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.headers.get("location")).not.toMatch(/\?|desactiv|termin/);
+  });
+
+  it("Server Function : pas de renvoi HTTP ni de lecture du profil, sa garde fermera la session", async () => {
+    const reponse = await proxy(requeteConnectee("/demandes", { action: true }));
+    expect(reponse.status).toBe(200);
+    expect(simulation.lecturesProfil).toBe(0);
+    expect(simulation.signOut).toEqual([]);
+  });
+
+  it.each([
+    ["compte actif", { actif: true, doit_changer_mdp: false }],
+    ["état illisible", { actif: null, doit_changer_mdp: false }],
+  ])("%s : rien n'est fermé", async (_, profil) => {
+    simulation.profil = profil;
+    const reponse = await proxy(requeteConnectee("/demandes"));
     expect(reponse.status).toBe(200);
     expect(simulation.signOut).toEqual([]);
     expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();

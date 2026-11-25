@@ -1,12 +1,14 @@
 import "server-only";
 
+import { z } from "zod";
+
 import { journaliser, type DetailsJournal } from "@/server/journal";
 import { creerClientSecret } from "@/server/supabase-secret";
 import { nouveauCodeSupport } from "@/shared/code-support";
 import type { Role } from "@/shared/constantes";
-import { MESSAGES_COMPTE, MESSAGES_PARAMETRES, resumeErreurs } from "@/shared/messages";
+import { MESSAGES_ACCES_REFUSE, MESSAGES_COMPTE, MESSAGES_PARAMETRES, resumeErreurs } from "@/shared/messages";
 import { echec, succes, type ErreursChamps, type Reponse } from "@/shared/reponse";
-import { validerCompte } from "@/shared/schemas/compte";
+import { validerCompte, validerEtatCompte } from "@/shared/schemas/compte";
 import { validerParametres, type DonneesParametres } from "@/shared/schemas/parametres";
 
 // Comptes internes et informations générales (AD-6, AD-9, AD-13).
@@ -20,6 +22,10 @@ import { validerParametres, type DonneesParametres } from "@/shared/schemas/para
 // Utilisé par la procédure d'installation (`scripts/installation`, story 1.5),
 // par l'écran A1 (`actionCreerCompte`, story 3.2) et, plus tard, par l'écran
 // A3 (story 4.3).
+//
+// Désactivation et réactivation (story 3.4) : `changerEtatCompte`, la base
+// d'abord (`modifier_compte`, règle du dernier administrateur), puis le
+// blocage dans Supabase Auth, avec retour arrière si Auth échoue.
 //
 // Jamais de mot de passe dans le journal ni dans les messages d'erreur.
 
@@ -227,4 +233,162 @@ export async function installerParametres(
 
   await journaliser("info", "parametres_modifies", { auteur });
   return succes({ telephone, emailContact, contactDonnees });
+}
+
+// ---------------------------------------------------------------------------
+// Désactivation et réactivation (story 3.4 ; FR-22, FR-25, RM-9, RM-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Blocage d'un compte désactivé dans Supabase Auth : environ cent ans. Sa
+ * session ne peut plus se renouveler, et Auth refuse toute connexion
+ * (`user_banned`, lu comme « Identifiants incorrects »).
+ */
+export const DUREE_BLOCAGE_AUTH = "876000h";
+
+/** Refus prévus de `modifier_compte` (codes SQL propres à l'application). */
+const REFUS_AUTEUR = "NV202";
+const REFUS_DERNIER_ADMINISTRATEUR = "NV203";
+const REFUS_COMPTE_INTROUVABLE = "NV204";
+
+const schemaModification = z.object({
+  nom: z.string(),
+  email: z.string(),
+  change: z.boolean(),
+});
+
+/** Compte après une désactivation ou une réactivation. */
+export type EtatCompteModifie = {
+  id: string;
+  nom: string;
+  email: string;
+  /** État en place après l'appel. */
+  actif: boolean;
+  /** Faux si le compte était déjà dans cet état : rien n'a été fait. */
+  change: boolean;
+};
+
+/**
+ * Désactive (`actif` faux) ou réactive (`actif` vrai) le compte `compteId`.
+ * Un compte n'est jamais supprimé (RM-10).
+ *
+ * 1. Saisie vérifiée (Zod) : `VALIDATION` sans aucun appel.
+ * 2. La base d'abord, par `modifier_compte` : elle seule tient la règle du
+ *    dernier administrateur actif (RM-9, AD-10) et revérifie que `auteur`
+ *    est un administrateur actif. Refus : `CONFLIT` (dernier
+ *    administrateur, message exact), `ACCES_REFUSE` (auteur), `INTROUVABLE`.
+ * 3. Puis Supabase Auth : compte bloqué (`ban_duration`), ou débloqué. Si
+ *    Auth échoue, le profil est remis comme avant (`retablir_compte`) :
+ *    l'état ne change pas, et l'échec est journalisé avec un code court.
+ *    Profil déjà dans l'état voulu : Auth est quand même remis d'accord
+ *    (sans retour arrière s'il échoue), puis réussite avec `change` faux,
+ *    sans rien au journal.
+ * 4. `compte_desactive` ou `compte_reactive` au journal (compte, email,
+ *    auteur).
+ *
+ * `auteur` : identifiant de l'administrateur, déjà vérifié par
+ * `exigerAdministrateur()`.
+ */
+export async function changerEtatCompte(
+  compteId: unknown,
+  actif: unknown,
+  { auteur }: { auteur: string },
+): Promise<Reponse<EtatCompteModifie>> {
+  const validation = validerEtatCompte({ compteId, actif });
+  if (!validation.ok) return echecValidation(validation.champs);
+  const { compteId: id, actif: voulu } = validation.donnees;
+
+  const messagePanne = voulu ? MESSAGES_COMPTE.reactivationImpossible : MESSAGES_COMPTE.desactivationImpossible;
+  const action = voulu ? "reactiver_compte" : "desactiver_compte";
+
+  const client = clientSecret();
+  if (!client) return echec("ERREUR_INTERNE", MESSAGE_CLES_ABSENTES);
+
+  // 1. La base, qui tient la règle du dernier administrateur.
+  let refus: string | null = null;
+  let reponseBase: unknown = null;
+  try {
+    const { data, error } = await client
+      .rpc("modifier_compte", { p_auteur: auteur, p_compte: id, p_actif: voulu })
+      .abortSignal(AbortSignal.timeout(DELAI_MS));
+    if (error) refus = error.code || "inconnu";
+    else reponseBase = data;
+  } catch {
+    refus = "injoignable";
+  }
+
+  if (refus === REFUS_DERNIER_ADMINISTRATEUR) return echec("CONFLIT", MESSAGES_COMPTE.dernierAdministrateur);
+  if (refus === REFUS_AUTEUR) return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+  if (refus === REFUS_COMPTE_INTROUVABLE) return echec("INTROUVABLE", messagePanne);
+  if (refus) {
+    return erreurImprevue(messagePanne, { action, etape: "modifier_compte", code_base: refus, compte_id: id });
+  }
+
+  const lu = schemaModification.safeParse(reponseBase);
+  if (!lu.success) {
+    // Réponse illisible : on ne sait pas si le profil a changé, donc rien
+    // n'est remis. Un nouvel essai resynchronise Auth (branche suivante).
+    return erreurImprevue(messagePanne, {
+      action,
+      etape: "modifier_compte",
+      code_base: "reponse_inattendue",
+      compte_id: id,
+    });
+  }
+  const { nom, email, change } = lu.data;
+
+  // 2. Supabase Auth : la session ne peut plus se renouveler (ou de nouveau).
+  const refusAuth = await bloquerDansAuth(client, id, voulu);
+
+  if (!change) {
+    // Profil déjà dans l'état voulu : Auth est seulement remis d'accord avec
+    // lui (après un retour arrière manqué, par exemple). Rien à défaire,
+    // rien au journal comme désactivation ou réactivation.
+    if (refusAuth) {
+      return erreurImprevue(messagePanne, { action, etape: "auth", code_base: refusAuth, compte_id: id });
+    }
+    return succes({ id, nom, email, actif: voulu, change: false });
+  }
+
+  if (refusAuth) {
+    // 3. Retour arrière : le profil est remis comme avant.
+    const retabli = await retablirCompte(client, id, !voulu);
+    return erreurImprevue(messagePanne, {
+      action,
+      etape: "auth",
+      code_base: refusAuth,
+      compte_id: id,
+      profil_retabli: retabli,
+    });
+  }
+
+  await journaliser("info", voulu ? "compte_reactive" : "compte_desactive", { compte_id: id, email, auteur });
+  return succes({ id, nom, email, actif: voulu, change: true });
+}
+
+/**
+ * Bloque (`actif` faux) ou débloque (`actif` vrai) le compte dans Supabase
+ * Auth. Renvoie `null` si c'est fait, sinon un code court de l'échec.
+ */
+async function bloquerDansAuth(client: ClientSecret, id: string, actif: boolean): Promise<string | null> {
+  try {
+    const { error } = await client.auth.admin.updateUserById(id, {
+      ban_duration: actif ? "none" : DUREE_BLOCAGE_AUTH,
+    });
+    return error ? (error.code ?? String(error.status ?? "inconnu")) : null;
+  } catch {
+    return "injoignable";
+  }
+}
+
+/** Remet `profils.actif` du compte comme avant. Vrai si c'est fait. */
+async function retablirCompte(client: ClientSecret, id: string, actif: boolean): Promise<boolean> {
+  try {
+    const { error } = await client
+      .rpc("retablir_compte", { p_compte: id, p_actif: actif })
+      .abortSignal(AbortSignal.timeout(DELAI_MS));
+    return !error;
+  } catch {
+    return false;
+  }
 }

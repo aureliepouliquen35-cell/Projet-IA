@@ -92,3 +92,42 @@ test("collaborateur : la vraie fonction SQL lister_comptes refuse un appel direc
     await supabase.auth.signOut({ scope: "local" });
   }
 });
+
+test("collaborateur : les vraies fonctions SQL modifier_compte et retablir_compte refusent un appel direct", async () => {
+  // Story 3.4 : exécutables par `service_role` seul. Appelées sur le compte
+  // du collaborateur lui-même, avec `p_actif` vrai : même un droit donné par
+  // erreur ne désactiverait personne. Demande la migration
+  // `20261125090000_desactiver_compte.sql` sur dev.
+  const { email, motDePasse } = identifiantsE2e(process.env);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  expect(url, "NEXT_PUBLIC_SUPABASE_URL dans .env.local").not.toBe("");
+  expect(cle, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY dans .env.local").not.toBe("");
+
+  const supabase = createClient(url, cle, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { data: connexion, error: erreurConnexion } = await supabase.auth.signInWithPassword({
+    email,
+    password: motDePasse,
+  });
+  expect(erreurConnexion?.code ?? null, "connexion du compte de test").toBeNull();
+  const id = connexion.user!.id;
+  try {
+    const modifier = await supabase.rpc("modifier_compte", { p_auteur: id, p_compte: id, p_actif: true });
+    // 42501 : droit d'exécution refusé (le rôle `authenticated` n'en a pas).
+    expect(modifier.error?.code ?? null).toBe("42501");
+    expect(modifier.data).toBeNull();
+
+    const retablir = await supabase.rpc("retablir_compte", { p_compte: id, p_actif: true });
+    expect(retablir.error?.code ?? null).toBe("42501");
+    expect(retablir.data).toBeNull();
+
+    // Rien n'a changé : le profil (sa propre ligne) est toujours actif.
+    const { data: profil, error } = await supabase.from("profils").select("actif").eq("id", id).maybeSingle();
+    expect(error).toBeNull();
+    expect(profil).toEqual({ actif: true });
+  } finally {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+});

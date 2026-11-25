@@ -86,3 +86,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-1-reserver-administration-administrateurs.md`
   summary: Story 3.3 — la section Administration du menu est dans le layout, qui n'est pas relu à la navigation : un administrateur rétrogradé la garde jusqu'au prochain rafraîchissement (la page A1, elle, affiche S1) ; FR-22 demande qu'elle disparaisse à sa prochaine action.
   evidence: commentaire de `src/components/interne/menu-lateral.tsx` (« Le menu n'est pas relu quand on passe d'une page… ») ; relevé par deux relecteurs de la 3.1.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-4-desactiver-reactiver-compte.md`
+  summary: Exécuter la règle du dernier administrateur (RM-9) et le verrou de `modifier_compte` sur un vrai Postgres, avec deux appels simultanés.
+  evidence: Les tests de la story 3.4 passent par une simulation TypeScript et la lecture du texte SQL ; l'e2e n'a volontairement pas d'identifiants administrateur. Réglerait la question : un test d'intégration sur une base locale (`supabase start`) qui lance deux `modifier_compte` en parallèle.

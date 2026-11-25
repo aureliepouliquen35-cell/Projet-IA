@@ -60,6 +60,14 @@ import { vi } from "vitest";
 //   session ; sinon tous les profils, désactivés compris, triés par nom
 //   (sans accents ni majuscules) puis par email. L'email est `email` du
 //   profil, sinon celui de son compte Auth (`comptes`).
+// - Désactivation et réactivation (story 3.4) : `modifier_compte` et
+//   `retablir_compte` par le client secret, avec les règles de la migration
+//   sur `profils` : `NV202` (auteur qui n'est pas un administrateur actif au
+//   mot de passe choisi), `NV204` (compte inconnu), `NV203` (désactiver le
+//   dernier administrateur actif) ; déjà dans l'état voulu : `change` faux.
+//   Le blocage d'Auth (`auth.admin.updateUserById`, `ban_duration`) est
+//   gardé dans `bannis` ; un compte bloqué reçoit `user_banned` à la
+//   connexion.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -349,10 +357,53 @@ export function creerSimulationConnexion() {
         profil.doit_changer_mdp = false;
         temporaires.delete(id);
       }
+      if (nom === "modifier_compte") return modifierCompte(parametres);
+      if (nom === "retablir_compte") return retablirCompte(parametres);
       return { data: null, error: null };
     },
   }));
-  const creerClientSecret = vi.fn(() => ({ rpc }));
+
+  /** Vrai si un autre administrateur que `id` est actif (règle du dernier administrateur). */
+  const autreAdministrateurActif = (id: string) =>
+    [...profils.values()].some((p) => p.role === "administrateur" && p.actif && p.id !== id);
+
+  /** `modifier_compte` de la migration 3.4. */
+  function modifierCompte(p: Record<string, unknown>): RetourRpc {
+    const auteur = profils.get(String(p.p_auteur));
+    if (!auteur || !auteur.actif || auteur.doit_changer_mdp || auteur.role !== "administrateur") {
+      return { data: null, error: { code: "NV202", message: "Accès refusé" } };
+    }
+    const compte = profils.get(String(p.p_compte));
+    if (!compte) return { data: null, error: { code: "NV204", message: "compte introuvable" } };
+    const email = compte.email ?? [...comptes].find(([, c]) => c.id === compte.id)?.[0] ?? "";
+    if (compte.actif === p.p_actif) return { data: { nom: compte.nom, email, change: false }, error: null };
+    if (p.p_actif === false && compte.role === "administrateur" && !autreAdministrateurActif(compte.id)) {
+      return { data: null, error: { code: "NV203", message: "dernier administrateur" } };
+    }
+    compte.actif = p.p_actif === true;
+    return { data: { nom: compte.nom, email, change: true }, error: null };
+  }
+
+  /** `retablir_compte` de la migration 3.4 (retour arrière, sans auteur). */
+  function retablirCompte(p: Record<string, unknown>): RetourRpc {
+    const compte = profils.get(String(p.p_compte));
+    if (!compte) return { data: null, error: { code: "NV204", message: "compte introuvable" } };
+    if (p.p_actif === false && compte.role === "administrateur" && !autreAdministrateurActif(compte.id)) {
+      return { data: null, error: { code: "NV203", message: "dernier administrateur" } };
+    }
+    compte.actif = p.p_actif === true;
+    return { data: null, error: null };
+  }
+
+  /** Comptes bloqués dans Supabase Auth (identifiants). */
+  const bannis = new Set<string>();
+  /** API d'administration d'Auth : blocage (`ban_duration`) ou déblocage (`none`). */
+  const updateUserById = vi.fn(async (id: string, attributs: { ban_duration?: string }) => {
+    if (attributs.ban_duration === "none") bannis.delete(id);
+    else if (attributs.ban_duration) bannis.add(id);
+    return { data: { user: { id } }, error: null as ErreurSimulee };
+  });
+  const creerClientSecret = vi.fn(() => ({ rpc, auth: { admin: { updateUserById } } }));
 
   const signInWithPassword = vi.fn(
     async ({ email, password }: { email: string; password: string }) => {
@@ -361,6 +412,12 @@ export function creerSimulationConnexion() {
         return {
           data: { user: null, session: null },
           error: { code: "invalid_credentials", message: "Invalid login credentials", status: 400 } as ErreurSimulee,
+        };
+      }
+      if (bannis.has(compte.id)) {
+        return {
+          data: { user: null, session: null },
+          error: { code: "user_banned", message: "User is banned", status: 400 } as ErreurSimulee,
         };
       }
       session.id = compte.id;
@@ -652,6 +709,7 @@ export function creerSimulationConnexion() {
     contact.donnees = CONTACT_DONNEES_SIMULE;
     cookiesRecus.clear();
     cookiesPoses.clear();
+    bannis.clear();
     vi.stubEnv("SECRET_COOKIES", SECRET_COOKIES_ESSAI);
     comptes.set(EMAIL_KARIM, { motDePasse: MOT_DE_PASSE_KARIM, id: ID_KARIM });
     profils.set(ID_KARIM, { ...PROFIL_KARIM });
@@ -690,6 +748,8 @@ export function creerSimulationConnexion() {
     signOut,
     getClaims,
     updateUser,
+    updateUserById,
+    bannis,
     cookies,
     cookiesRecus,
     cookiesPoses,

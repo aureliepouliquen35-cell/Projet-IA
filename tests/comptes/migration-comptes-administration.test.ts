@@ -73,8 +73,10 @@ describe("exiger_administrateur (AD-7, AD-9)", () => {
     expect(corps).toMatch(/return v_id;/);
   });
 
-  it("NV202 n'est pris par aucune autre migration", () => {
-    const autres = readdirSync(DOSSIER).filter((f) => f.endsWith(".sql") && f !== FICHIERS[0]);
+  it("NV202 n'est pris par aucune autre migration, sauf modifier_compte (story 3.4) qui revérifie l'auteur", () => {
+    const autres = readdirSync(DOSSIER).filter(
+      (f) => f.endsWith(".sql") && f !== FICHIERS[0] && f !== "20261125090000_desactiver_compte.sql",
+    );
     for (const fichier of autres) {
       expect(readFileSync(join(DOSSIER, fichier), "utf8").toLowerCase(), fichier).not.toContain("'nv202'");
     }

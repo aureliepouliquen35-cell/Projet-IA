@@ -6,6 +6,7 @@ import {
   COOKIE_MESSAGE_CONNEXION,
   optionsMessageConnexion,
   valeurSessionExpiree,
+  valeurSessionTerminee,
 } from "@/server/passage";
 import {
   ADRESSE_ACCUEIL_INTERNE,
@@ -31,6 +32,10 @@ const DELAI_MS = 8000;
 // - plus de 8 h sans activité (cookie d'activité trop ancien, absent ou
 //   falsifié) : session fermée, renvoi vers I1 avec le message « session
 //   expirée » (cookie de `src/server/passage`, AD-20) ;
+// - compte désactivé pendant la session (`profils.actif` faux, FR-22) :
+//   session fermée, renvoi vers I1 avec le message « session terminée »
+//   (story 3.4). De même si le renouvellement de la session est refusé
+//   parce que le compte est bloqué dans Auth (`user_banned`) ;
 // - mot de passe temporaire à remplacer (`profils.doit_changer_mdp`) : renvoi
 //   vers I2 ; I2 sans changement à faire : renvoi vers « Demandes ». Si le
 //   profil ne peut pas être lu, la requête passe : la garde décide ;
@@ -39,11 +44,12 @@ const DELAI_MS = 8000;
 //
 // Une Server Function (requête `POST` avec l'en-tête `next-action`) n'est
 // jamais renvoyée ailleurs par HTTP : sa garde (`exigerUtilisateur`,
-// `exigerChangementMotDePasse`) renvoie elle-même vers la bonne page. Une
-// session expirée y est quand même fermée.
+// `exigerChangementMotDePasse`) renvoie elle-même vers la bonne page (et
+// ferme la session d'un compte désactivé). Une session expirée y est quand
+// même fermée.
 //
-// Le proxy ne regarde pas le reste du profil (actif, rôle) : il est relu par
-// la garde de la page (`src/server/garde`), qui reste la vraie protection.
+// Le proxy ne regarde pas le rôle : il est relu par la garde de la page
+// (`src/server/garde`), qui reste la vraie protection.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -73,7 +79,7 @@ export async function updateSession(request: NextRequest) {
 
   // Ne rien insérer entre la création du client et cet appel :
   // il déclenche le rafraîchissement du jeton si nécessaire.
-  const { data } = await supabase.auth.getClaims();
+  const { data, error: erreurSession } = await supabase.auth.getClaims();
 
   const chemin = request.nextUrl.pathname;
   if (!estPageProtegee(chemin)) return response;
@@ -97,9 +103,25 @@ export async function updateSession(request: NextRequest) {
     return renvoi;
   };
 
+  /**
+   * Compte désactivé pendant la session : même fin que l'expiration, avec
+   * un message neutre qui ne dit pas pourquoi (« session terminée »).
+   */
+  const terminerSession = async () => {
+    await fermerSession();
+    response.cookies.set(COOKIE_ACTIVITE, "", { ...optionsActivite(), maxAge: 0 });
+    response.cookies.set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee(), optionsMessageConnexion());
+    return renvoyer(ADRESSE_CONNEXION);
+  };
+
   const id = data?.claims?.sub;
   if (typeof id !== "string" || id === "") {
-    return estAction ? passer() : renvoyer(ADRESSE_CONNEXION);
+    if (estAction) return passer();
+    // Jeton d'accès expiré d'un compte bloqué dans Auth (désactivé) : le
+    // renouvellement est refusé, sans profil lisible. Code `user_banned`
+    // attendu d'après Supabase Auth, pas observé en vrai.
+    if (erreurSession?.code === "user_banned") return terminerSession();
+    return renvoyer(ADRESSE_CONNEXION);
   }
 
   if (!activiteValide(request.cookies.get(COOKIE_ACTIVITE)?.value)) {
@@ -111,7 +133,9 @@ export async function updateSession(request: NextRequest) {
 
   let destination: string | null = null;
   if (!estAction) {
-    const doitChangerMdp = await lireDoitChangerMdp(id);
+    const profil = await lireProfil(id);
+    if (profil?.actif === false) return terminerSession();
+    const doitChangerMdp = profil?.doitChangerMdp ?? null;
     if (doitChangerMdp === true && !estPageNouveauMotDePasse(chemin)) {
       destination = ADRESSE_NOUVEAU_MOT_DE_PASSE;
     } else if (doitChangerMdp === false && estPageNouveauMotDePasse(chemin)) {
@@ -124,19 +148,26 @@ export async function updateSession(request: NextRequest) {
   return destination ? renvoyer(destination) : passer();
 
   /**
-   * `profils.doit_changer_mdp`, lu avec la session ; `null` si le profil
-   * n'existe pas, n'est pas lisible ou ne répond pas (la garde décidera).
+   * `profils.actif` et `profils.doit_changer_mdp`, lus avec la session (sa
+   * propre ligne, même désactivée) ; `null` si le profil n'existe pas, n'est
+   * pas lisible ou ne répond pas, et pour une valeur inattendue (la garde
+   * décidera).
    */
-  async function lireDoitChangerMdp(idCompte: string): Promise<boolean | null> {
+  async function lireProfil(
+    idCompte: string,
+  ): Promise<{ actif: boolean | null; doitChangerMdp: boolean | null } | null> {
     try {
       const { data: profil, error } = await supabase
         .from("profils")
-        .select("doit_changer_mdp")
+        .select("actif, doit_changer_mdp")
         .eq("id", idCompte)
         .abortSignal(AbortSignal.timeout(DELAI_MS))
         .maybeSingle();
-      if (error || !profil || typeof profil.doit_changer_mdp !== "boolean") return null;
-      return profil.doit_changer_mdp;
+      if (error || !profil) return null;
+      return {
+        actif: typeof profil.actif === "boolean" ? profil.actif : null,
+        doitChangerMdp: typeof profil.doit_changer_mdp === "boolean" ? profil.doit_changer_mdp : null,
+      };
     } catch {
       return null;
     }

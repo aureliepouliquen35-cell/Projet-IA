@@ -77,6 +77,14 @@ export const MESSAGES_COMPTE = {
   compteExistant: "Un compte existe déjà avec cet email.",
   /** Réponse `ERREUR_INTERNE` : rien n'a été créé. */
   creationImpossible: "Le compte n'a pas pu être créé. Réessayez.",
+  /** Réponse `ERREUR_INTERNE` de la désactivation (story 3.4) : rien n'a changé. */
+  desactivationImpossible: "Le compte n'a pas pu être désactivé. Réessayez.",
+  /** Réponse `ERREUR_INTERNE` de la réactivation (story 3.4) : rien n'a changé. */
+  reactivationImpossible: "Le compte n'a pas pu être réactivé. Réessayez.",
+  /** Réponse `CONFLIT` (RM-9, FR-25) : texte exact de l'UX, rien n'a changé. */
+  dernierAdministrateur: "Impossible : il doit rester au moins un administrateur actif.",
+  /** Saisie de la désactivation ou de la réactivation mal formée (appel direct). */
+  etatInvalide: "Le compte ou l'état demandé n'est pas valide.",
 } as const;
 
 /** Informations générales (écran A3, FR-31), textes de l'UX. */
@@ -180,6 +188,7 @@ export const MESSAGES_COMPTES = {
     email: "Email",
     role: "Rôle",
     etat: "État",
+    actions: "Actions",
   },
   actif: "Actif",
   /** Badge gris, toujours écrit en toutes lettres. */
@@ -211,6 +220,30 @@ export const MESSAGES_COMPTES = {
     copie: "Copié",
     /** Toast de succès. */
     compteCree: "Compte créé",
+  },
+  /**
+   * « Désactiver » et « Réactiver » de la colonne Actions (story 3.4 ;
+   * FR-22, FR-25, RM-9, RM-10). Les pannes et le refus du dernier
+   * administrateur viennent de `MESSAGES_COMPTE`.
+   */
+  etat: {
+    desactiver: "Désactiver",
+    /** Nom du bouton pour les lecteurs d'écran : « Désactiver le compte de Lucas Bernard ». */
+    desactiverNom: (nom: string) => `Désactiver le compte de ${nom}`,
+    desactivationEnCours: "Désactivation…",
+    reactiver: "Réactiver",
+    /** Nom du bouton pour les lecteurs d'écran : « Réactiver le compte de Lucas Bernard ». */
+    reactiverNom: (nom: string) => `Réactiver le compte de ${nom}`,
+    reactivationEnCours: "Réactivation…",
+    /** Titre de la fenêtre de confirmation. */
+    fenetreTitre: (nom: string) => `Désactiver le compte de ${nom} ?`,
+    /** Texte de l'UX, avec le premier mot du nom : « Lucas ne pourra plus se connecter… ». */
+    fenetreTexte: (prenom: string) =>
+      `${prenom} ne pourra plus se connecter. Son nom restera dans l'historique des demandes.`,
+    annuler: "Annuler",
+    /** Toasts de succès (5 s). */
+    compteDesactive: "Compte désactivé",
+    compteReactive: "Compte réactivé",
   },
 } as const;
 
@@ -336,6 +369,12 @@ export const MESSAGES_MOT_DE_PASSE = {
 
 /** Encadré d'information de la connexion I1 après 8 h d'inactivité (FR-9). */
 export const MESSAGE_SESSION_EXPIREE = "Votre session a expiré. Reconnectez-vous pour continuer.";
+
+/**
+ * Encadré neutre de la connexion I1 quand le compte a été désactivé pendant
+ * la session (FR-22) : il ne dit pas pourquoi.
+ */
+export const MESSAGE_SESSION_TERMINEE = "Votre session a pris fin. Contactez votre administrateur si besoin.";
 
 /**
  * Écran I4 « Détail d'une demande » (EXPERIENCE.md, FR-15, FR-17). Le

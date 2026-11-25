@@ -8,6 +8,7 @@ import {
   ROLES,
 } from "@/shared/constantes";
 import { MESSAGES_COMPTE } from "@/shared/messages";
+import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
 
 import { validerSaisie, type Validation } from "./validation";
 
@@ -49,4 +50,28 @@ export type DonneesCompte = z.infer<typeof schemaCompte>;
 
 export function validerCompte(saisie: unknown): Validation<DonneesCompte> {
   return validerSaisie(schemaCompte, CHAMPS_COMPTE, saisie);
+}
+
+// ---------------------------------------------------------------------------
+// Désactivation et réactivation (story 3.4 ; FR-22, RM-10)
+// ---------------------------------------------------------------------------
+
+/** Champs de la désactivation ou de la réactivation. */
+export const CHAMPS_ETAT_COMPTE = ["compteId", "actif"] as const;
+
+export const schemaEtatCompte = z.object({
+  // Identifiant du compte Supabase Auth (UUID), en minuscules comme dans la base.
+  compteId: z
+    .string({ error: MESSAGES_COMPTE.etatInvalide })
+    .regex(FORME_IDENTIFIANT, MESSAGES_COMPTE.etatInvalide)
+    .transform((texte) => texte.toLowerCase()),
+  /** Faux : désactiver ; vrai : réactiver. */
+  actif: z.boolean({ error: MESSAGES_COMPTE.etatInvalide }),
+});
+
+/** Désactivation (`actif` faux) ou réactivation (`actif` vrai) vérifiée. */
+export type DonneesEtatCompte = z.infer<typeof schemaEtatCompte>;
+
+export function validerEtatCompte(saisie: unknown): Validation<DonneesEtatCompte> {
+  return validerSaisie(schemaEtatCompte, CHAMPS_ETAT_COMPTE, saisie);
 }

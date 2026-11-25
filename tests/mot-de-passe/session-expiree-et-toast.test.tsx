@@ -23,7 +23,7 @@ const simulation = vi.hoisted(() => {
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 vi.mock("@/server/actions/se-connecter", () => ({ actionSeConnecter: vi.fn() }));
 
-import { EncadreSessionExpiree, MessageConnexion } from "@/app/connexion/message-connexion";
+import { EncadreSessionExpiree, EncadreSessionTerminee, MessageConnexion } from "@/app/connexion/message-connexion";
 import PageConnexion from "@/app/connexion/page";
 import { DUREE_TOAST_MS, Toaster } from "@/components/ui/sonner";
 import {
@@ -31,7 +31,9 @@ import {
   COOKIE_MESSAGE_CONNEXION,
   lireMessageConnexion,
   oublierMessageConnexion,
+  poserSessionTerminee,
   valeurSessionExpiree,
+  valeurSessionTerminee,
 } from "@/server/passage";
 
 import { texteDe } from "../aides/formulaire-depot";
@@ -122,7 +124,45 @@ describe("encadré de la connexion I1", () => {
   it("la page I1 sans message : aucun encadré", async () => {
     const page = await rendreEnEntier(<PageConnexion />);
     expect(page).not.toContain('data-slot="session-expiree"');
+    expect(page).not.toContain('data-slot="session-terminee"');
     expect(page).toContain("<form");
+  });
+});
+
+describe("message « session terminée » (compte désactivé pendant la session, FR-22, story 3.4)", () => {
+  it("aller-retour : lu par la connexion", async () => {
+    simulation.recus.set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee());
+    await expect(lireMessageConnexion()).resolves.toBe("session_terminee");
+  });
+
+  it("posé par une Server Function : sous /connexion, 30 minutes, httpOnly, chiffré", async () => {
+    await poserSessionTerminee();
+    const [valeur, options] = simulation.poses.get(COOKIE_MESSAGE_CONNEXION)!;
+    expect(options).toMatchObject({ path: "/connexion", maxAge: 30 * 60, httpOnly: true, sameSite: "lax" });
+    expect(Buffer.from(valeur, "base64url").toString("latin1")).not.toContain("session");
+    simulation.recus.set(COOKIE_MESSAGE_CONNEXION, valeur);
+    await expect(lireMessageConnexion()).resolves.toBe("session_terminee");
+  });
+
+  it("encadré neutre d'information, même style, texte exact de l'UX (sans dire pourquoi)", async () => {
+    simulation.recus.set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee());
+    const html = renderToStaticMarkup((await MessageConnexion())!);
+    expect(html).toBe(renderToStaticMarkup(<EncadreSessionTerminee />));
+    expect(html).toContain('data-slot="session-terminee"');
+    expect(html).toContain('data-variant="information"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain("lucide-info");
+    expect(texteDe(html)).toBe("Votre session a pris fin. Contactez votre administrateur si besoin.");
+    expect(texteDe(html)).not.toMatch(/désactiv/i);
+  });
+
+  it("la page I1 l'affiche au-dessus du formulaire, sans l'encadré « session expirée »", async () => {
+    simulation.recus.set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee());
+    const page = await rendreEnEntier(<PageConnexion />);
+    const encadre = page.indexOf('data-slot="session-terminee"');
+    expect(encadre).toBeGreaterThan(0);
+    expect(encadre).toBeLessThan(page.indexOf("<form"));
+    expect(page).not.toContain('data-slot="session-expiree"');
   });
 });
 

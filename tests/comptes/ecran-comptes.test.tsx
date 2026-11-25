@@ -113,21 +113,21 @@ describe("écran A1 « Comptes »", () => {
     simulation.profils.get(ID_KARIM)!.actif = false;
   });
 
-  it("titre « Comptes », vrai tableau Nom · Email · Rôle · État", async () => {
+  it("titre « Comptes », vrai tableau Nom · Email · Rôle · État · Actions", async () => {
     const html = await rendreContenu();
     expect(html).toMatch(/<h1[^>]*>Comptes<\/h1>/);
     expect(html).toMatch(/<table data-slot="tableau-comptes"/);
     expect(html).toMatch(/<caption class="sr-only">[^<]+<\/caption>/);
     const entetes = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map(([, texte]) => texte);
-    expect(entetes).toEqual(["Nom", "Email", "Rôle", "État"]);
+    expect(entetes).toEqual(["Nom", "Email", "Rôle", "État", "Actions"]);
   });
 
   it("tous les comptes, désactivés compris, triés par nom ; nom en en-tête de ligne", async () => {
     const html = await rendreContenu();
     const lignes = [...html.matchAll(/<tr data-slot="ligne-compte"[^>]*>([\s\S]*?)<\/tr>/g)].map(([, ligne]) => texteDe(ligne));
     expect(lignes).toEqual([
-      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé`,
-      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif`,
+      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé Réactiver`,
+      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif Désactiver`,
     ]);
     expect(html).toMatch(/<th scope="row"[^>]*>Karim Benali<\/th>/);
   });
@@ -143,11 +143,15 @@ describe("écran A1 « Comptes »", () => {
     expect(html).toMatch(/<td[^>]*>Actif<\/td>/);
   });
 
-  it("bouton « Créer un compte » à droite du titre (story 3.2), pas encore de colonne Actions (stories 3.3 à 3.5)", async () => {
+  it("bouton « Créer un compte » à droite du titre (story 3.2) ; Actions : « Désactiver » ou « Réactiver » seulement (story 3.4)", async () => {
     const html = await rendreContenu();
     expect(html).toMatch(/<h1[^>]*>Comptes<\/h1><button[^>]*data-slot="bouton-creer-compte"[^>]*>[\s\S]*?Créer un compte<\/button>/);
-    expect(html.match(/<button/g)).toHaveLength(1);
-    expect(texteDe(html)).not.toMatch(/Actions|Modifier|Réinitialiser|Désactiver|Réactiver/);
+    // « Créer un compte », puis un bouton par ligne.
+    expect(html.match(/<button/g)).toHaveLength(3);
+    expect(html.match(/data-slot="desactiver"/g)).toHaveLength(1);
+    expect(html.match(/data-slot="reactiver"/g)).toHaveLength(1);
+    // « Modifier » et « Réinitialiser le mot de passe » : stories 3.3 et 3.5.
+    expect(texteDe(html)).not.toMatch(/Modifier|Réinitialiser/);
   });
 
   it("ni mot de passe, ni empreinte", async () => {

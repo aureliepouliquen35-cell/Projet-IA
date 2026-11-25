@@ -180,17 +180,23 @@ export async function lireConfirmation(): Promise<Confirmation | null> {
 
 /**
  * Cookie du message affiché par la connexion I1 après un renvoi (« Votre
- * session a expiré… »), lu seulement sous `/connexion`.
+ * session a expiré… », « Votre session a pris fin… »), lu seulement sous
+ * `/connexion`.
  */
 export const COOKIE_MESSAGE_CONNEXION = "nova_message_connexion";
 const CHEMIN_CONNEXION = "/connexion";
 
-/** Messages possibles de la connexion. Le texte affiché est dans `src/shared/messages`. */
-export type MessageConnexion = "session_expiree";
+/**
+ * Messages possibles de la connexion. Le texte affiché est dans
+ * `src/shared/messages` : « session expirée » (8 h d'inactivité, FR-9),
+ * « session terminée » (compte désactivé pendant la session, FR-22).
+ */
+export const MESSAGES_POSSIBLES_CONNEXION = ["session_expiree", "session_terminee"] as const;
+export type MessageConnexion = (typeof MESSAGES_POSSIBLES_CONNEXION)[number];
 
 const schemaMessageConnexion = z.object({
   type: z.literal("message_connexion"),
-  message: z.literal("session_expiree"),
+  message: z.enum(MESSAGES_POSSIBLES_CONNEXION),
 });
 
 /** Options du cookie de message de la connexion (30 minutes, sous `/connexion`). */
@@ -214,6 +220,29 @@ export function valeurSessionExpiree(maintenant: number = Date.now()): string {
     { type: "message_connexion", message: "session_expiree" },
     maintenant,
   );
+}
+
+/**
+ * Valeur du cookie « session terminée » (compte désactivé pendant la
+ * session, FR-22). Le proxy la pose sur sa réponse, avec
+ * `optionsMessageConnexion` ; une Server Function passe par
+ * `poserSessionTerminee`.
+ */
+export function valeurSessionTerminee(maintenant: number = Date.now()): string {
+  return chiffrerPassage(
+    COOKIE_MESSAGE_CONNEXION,
+    { type: "message_connexion", message: "session_terminee" },
+    maintenant,
+  );
+}
+
+/**
+ * Pose le message « session terminée » pour la connexion. À appeler depuis
+ * une Server Function : pendant le rendu d'une page, Next.js refuse
+ * d'écrire un cookie (erreur levée, à rattraper par l'appelant).
+ */
+export async function poserSessionTerminee(): Promise<void> {
+  (await cookies()).set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee(), optionsMessageConnexion());
 }
 
 /**

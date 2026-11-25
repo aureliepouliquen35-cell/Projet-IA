@@ -1,6 +1,7 @@
 import { CircleAlert } from "lucide-react";
 
 import { BoutonReessayer } from "@/components/interne/bouton-reessayer";
+import { EtatCompte } from "@/components/interne/etat-compte";
 import type { CompteAdministration } from "@/server/lectures/comptes";
 import { LIBELLES_ROLES } from "@/shared/constantes";
 import { MESSAGES_COMPTES } from "@/shared/messages";
@@ -9,14 +10,15 @@ import { MESSAGES_COMPTES } from "@/shared/messages";
 // FR-24) : le tableau des comptes, son état d'erreur et son squelette.
 //
 // Un vrai tableau, avec ses en-têtes de colonnes reconnus par les lecteurs
-// d'écran : Nom · Email · Rôle · État. Un compte actif est écrit « Actif » ;
+// d'écran : Nom · Email · Rôle · État · Actions. Un compte actif est écrit « Actif » ;
 // un compte désactivé porte le badge gris *Désactivé*, toujours écrit en
 // toutes lettres (la couleur n'est jamais la seule information).
 //
-// Pas encore de colonne « Actions » : elle arrive avec les stories 3.3 à
-// 3.5. Le bouton « Créer un compte » est à côté du titre
-// (`creer-compte.tsx`). Pas d'état vide : l'administrateur
-// connecté a toujours son compte.
+// Colonne « Actions » : « Désactiver » (avec sa fenêtre de confirmation) ou
+// « Réactiver » (story 3.4, `etat-compte.tsx`) ; « Modifier » et
+// « Réinitialiser le mot de passe » arrivent avec les stories 3.3 et 3.5.
+// Le bouton « Créer un compte » est à côté du titre (`creer-compte.tsx`).
+// Pas d'état vide : l'administrateur connecté a toujours son compte.
 
 const EN_TETE = "px-3 py-2.5 text-left text-caption font-semibold tracking-wide text-text-muted uppercase";
 const CELLULE = "h-14 border-t px-3 align-middle";
@@ -45,6 +47,7 @@ export function TableauComptes({ comptes }: { comptes: CompteAdministration[] })
             <th scope="col" className={EN_TETE}>{colonnes.email}</th>
             <th scope="col" className={EN_TETE}>{colonnes.role}</th>
             <th scope="col" className={EN_TETE}>{colonnes.etat}</th>
+            <th scope="col" className={EN_TETE}>{colonnes.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -56,6 +59,9 @@ export function TableauComptes({ comptes }: { comptes: CompteAdministration[] })
               <td className={`${CELLULE} text-text-muted`}>{compte.email}</td>
               <td className={CELLULE}>{LIBELLES_ROLES[compte.role]}</td>
               <td className={CELLULE}>{compte.actif ? MESSAGES_COMPTES.actif : <BadgeDesactive />}</td>
+              <td className={CELLULE}>
+                <EtatCompte compte={{ id: compte.id, nom: compte.nom, actif: compte.actif }} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -107,6 +113,7 @@ export function SqueletteComptes() {
             <div className="h-3 flex-1 rounded-sm bg-border" />
             <div className="h-3 w-24 rounded-sm bg-border" />
             <div className="h-3 w-16 rounded-sm bg-border" />
+            <div className="h-3 w-20 rounded-sm bg-border" />
           </div>
         ))}
       </div>

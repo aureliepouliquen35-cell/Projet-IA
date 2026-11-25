@@ -187,6 +187,31 @@ export const MESSAGES_COMPTES = {
   /** État d'erreur, suivi de « Réessayer » (`BoutonReessayer`, texte de `MESSAGES_LISTE`). */
   erreur: "Impossible de charger les comptes.",
   chargement: "Chargement…",
+  /** Bouton principal à côté du titre (story 3.2). */
+  creerUnCompte: "Créer un compte",
+  /**
+   * Fenêtre « Créer un compte » (story 3.2, FR-21, RM-8). Les erreurs sous
+   * les champs et l'encadré de panne viennent de `MESSAGES_COMPTE`.
+   */
+  creation: {
+    titre: "Créer un compte",
+    nom: "Nom",
+    email: "Email",
+    role: "Rôle",
+    motDePasse: "Mot de passe temporaire",
+    generer: "Générer",
+    /** Nom du bouton « Générer » pour les lecteurs d'écran. */
+    genererNom: "Générer un mot de passe temporaire",
+    aide: "Transmettez ce mot de passe vous-même à la personne. Elle devra le changer à sa première connexion.",
+    creerLeCompte: "Créer le compte",
+    creationEnCours: "Création…",
+    annuler: "Annuler",
+    fermer: "Fermer",
+    copier: "Copier",
+    copie: "Copié",
+    /** Toast de succès. */
+    compteCree: "Compte créé",
+  },
 } as const;
 
 /**
@@ -199,6 +224,8 @@ export const TITRE_ONGLET_ADMINISTRATION = "Administration — Nova Services";
 export const MESSAGES_ACCES_REFUSE = {
   message: "Accès refusé. Cette page est réservée aux administrateurs.",
   retourAuxDemandes: "Retour aux demandes",
+  /** Réponse `ACCES_REFUSE` d'une Server Function d'administration (RM-7). */
+  action: "Accès refusé.",
 } as const;
 
 /**

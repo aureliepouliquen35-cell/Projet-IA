@@ -74,6 +74,7 @@ export function Champ({
   compteur,
   erreur,
   className,
+  apres,
   children,
 }: {
   /** Identifiant du contrôle : celui visé par les liens du résumé d'erreurs. */
@@ -86,6 +87,8 @@ export function Champ({
   compteur?: { actuel: number; maximum: number };
   erreur?: string;
   className?: string;
+  /** Bouton placé à droite du contrôle, sur la même ligne (« Générer »). */
+  apres?: ReactNode;
   /** Le contrôle : `Input`, `Textarea` ou `NativeSelect`. */
   children: Controle;
 }) {
@@ -104,7 +107,14 @@ export function Champ({
         {etiquette}
         {obligatoire ? <Asterisque /> : null}
       </Label>
-      {relier(children, { id, obligatoire, erreur, decritPar })}
+      {apres ? (
+        <div className="flex items-start gap-2.5">
+          <div className="min-w-0 flex-1">{relier(children, { id, obligatoire, erreur, decritPar })}</div>
+          {apres}
+        </div>
+      ) : (
+        relier(children, { id, obligatoire, erreur, decritPar })
+      )}
       {aide || compteur ? (
         <div className="mt-1.5 flex justify-between gap-3 text-caption text-text-muted">
           <span id={ids.aide}>{aide}</span>

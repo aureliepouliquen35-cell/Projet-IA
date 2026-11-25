@@ -13,8 +13,9 @@ import { MESSAGES_COMPTES } from "@/shared/messages";
 // un compte désactivé porte le badge gris *Désactivé*, toujours écrit en
 // toutes lettres (la couleur n'est jamais la seule information).
 //
-// Pas encore de colonne « Actions » ni de bouton « Créer un compte » : ils
-// arrivent avec les stories 3.2 à 3.5. Pas d'état vide : l'administrateur
+// Pas encore de colonne « Actions » : elle arrive avec les stories 3.3 à
+// 3.5. Le bouton « Créer un compte » est à côté du titre
+// (`creer-compte.tsx`). Pas d'état vide : l'administrateur
 // connecté a toujours son compte.
 
 const EN_TETE = "px-3 py-2.5 text-left text-caption font-semibold tracking-wide text-text-muted uppercase";

@@ -143,10 +143,11 @@ describe("écran A1 « Comptes »", () => {
     expect(html).toMatch(/<td[^>]*>Actif<\/td>/);
   });
 
-  it("ni bouton « Créer un compte », ni colonne Actions (stories 3.2 à 3.5)", async () => {
+  it("bouton « Créer un compte » à droite du titre (story 3.2), pas encore de colonne Actions (stories 3.3 à 3.5)", async () => {
     const html = await rendreContenu();
-    expect(texteDe(html)).not.toMatch(/Créer un compte|Actions|Modifier|Réinitialiser|Désactiver|Réactiver/);
-    expect(html).not.toMatch(/<button/);
+    expect(html).toMatch(/<h1[^>]*>Comptes<\/h1><button[^>]*data-slot="bouton-creer-compte"[^>]*>[\s\S]*?Créer un compte<\/button>/);
+    expect(html.match(/<button/g)).toHaveLength(1);
+    expect(texteDe(html)).not.toMatch(/Actions|Modifier|Réinitialiser|Désactiver|Réactiver/);
   });
 
   it("ni mot de passe, ni empreinte", async () => {
@@ -163,6 +164,8 @@ describe("écran A1 « Comptes »", () => {
     expect(texteDe(html)).toContain("Impossible de charger les comptes.");
     expect(html).toMatch(/<button[^>]*>.*Réessayer<\/button>/);
     expect(html).not.toContain("tableau-comptes");
+    // Créer un compte ne dépend pas de la lecture : le bouton reste.
+    expect(html).toContain('data-slot="bouton-creer-compte"');
   });
 
   it("état d'erreur seul : le même message et « Réessayer »", () => {

@@ -1,7 +1,5 @@
 import "server-only";
 
-import { randomInt } from "node:crypto";
-
 import { journaliser, type DetailsJournal } from "@/server/journal";
 import { creerClientSecret } from "@/server/supabase-secret";
 import { nouveauCodeSupport } from "@/shared/code-support";
@@ -19,31 +17,23 @@ import { validerParametres, type DonneesParametres } from "@/shared/schemas/para
 // l'empreinte du mot de passe temporaire. Si le profil échoue, le compte Auth
 // est supprimé : il n'existe jamais de compte sans profil.
 //
-// Utilisé par la procédure d'installation (`scripts/installation`, story 1.5)
-// et, plus tard, par les écrans A1 et A3 (stories 3.2 et 4.3).
+// Utilisé par la procédure d'installation (`scripts/installation`, story 1.5),
+// par l'écran A1 (`actionCreerCompte`, story 3.2) et, plus tard, par l'écran
+// A3 (story 4.3).
 //
 // Jamais de mot de passe dans le journal ni dans les messages d'erreur.
 
 /** Au-delà, on abandonne : la commande ou l'écran ne restent pas bloqués. */
 const DELAI_MS = 10000;
 
-/** Longueur d'un mot de passe temporaire tiré au hasard (12 au moins, NFR-11). */
-export const LONGUEUR_MOT_DE_PASSE_TEMPORAIRE = 16;
-
-/**
- * Caractères d'un mot de passe temporaire : lettres et chiffres, sans ceux
- * qu'on confond en le recopiant (0 et O, o ; 1, l et I).
- */
-export const ALPHABET_MOT_DE_PASSE = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-
-/** Mot de passe temporaire tiré au hasard (générateur cryptographique). */
-export function genererMotDePasseTemporaire(): string {
-  let motDePasse = "";
-  for (let i = 0; i < LONGUEUR_MOT_DE_PASSE_TEMPORAIRE; i += 1) {
-    motDePasse += ALPHABET_MOT_DE_PASSE[randomInt(ALPHABET_MOT_DE_PASSE.length)];
-  }
-  return motDePasse;
-}
+// Le générateur est dans `src/shared` (story 3.2) : le bouton « Générer »
+// d'A1 tire le mot de passe dans le navigateur. Réexporté ici pour la
+// procédure d'installation.
+export {
+  ALPHABET_MOT_DE_PASSE,
+  genererMotDePasseTemporaire,
+  LONGUEUR_MOT_DE_PASSE_TEMPORAIRE,
+} from "@/shared/mot-de-passe-temporaire";
 
 /** Clés absentes du fichier d'environnement. */
 export const MESSAGE_CLES_ABSENTES =

@@ -168,12 +168,16 @@ describe("retablir_compte (retour arrière quand Supabase Auth échoue)", () => 
 });
 
 describe("codes de refus", () => {
-  it("NV203 et NV204 ne sont pris par aucune autre migration", () => {
+  it("NV203 et NV204 ne sont pris par aucune autre migration, sauf NV204 (même sens : compte introuvable) par reinitialiser_mdp (story 3.5)", () => {
     const autres = readdirSync(DOSSIER).filter((f) => f.endsWith(".sql") && f !== FICHIERS[0]);
     for (const fichier of autres) {
       const contenu = readFileSync(join(DOSSIER, fichier), "utf8").toLowerCase();
       expect(contenu, fichier).not.toContain("'nv203'");
-      expect(contenu, fichier).not.toContain("'nv204'");
+      if (fichier === "20261125120000_reinitialiser_mot_de_passe.sql") {
+        expect(contenu).toMatch(/compte introuvable\.'\s+using errcode = 'nv204'/);
+      } else {
+        expect(contenu, fichier).not.toContain("'nv204'");
+      }
     }
   });
 });

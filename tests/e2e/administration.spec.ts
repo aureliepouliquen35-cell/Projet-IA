@@ -131,3 +131,47 @@ test("collaborateur : les vraies fonctions SQL modifier_compte et retablir_compt
     await supabase.auth.signOut({ scope: "local" });
   }
 });
+
+test("collaborateur : la vraie fonction SQL reinitialiser_mdp refuse un appel direct", async () => {
+  // Story 3.5 : exécutable par `service_role` seul. Appelée sur le compte du
+  // collaborateur lui-même : même un droit donné par erreur ne toucherait
+  // que lui, et le refus arrive avant toute écriture. Aucun vrai compte
+  // n'est réinitialisé. Demande la migration
+  // `20261125120000_reinitialiser_mot_de_passe.sql` sur dev.
+  const { email, motDePasse } = identifiantsE2e(process.env);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  expect(url, "NEXT_PUBLIC_SUPABASE_URL dans .env.local").not.toBe("");
+  expect(cle, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY dans .env.local").not.toBe("");
+
+  const supabase = createClient(url, cle, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { data: connexion, error: erreurConnexion } = await supabase.auth.signInWithPassword({
+    email,
+    password: motDePasse,
+  });
+  expect(erreurConnexion?.code ?? null, "connexion du compte de test").toBeNull();
+  const id = connexion.user!.id;
+  try {
+    const reinitialiser = await supabase.rpc("reinitialiser_mdp", {
+      p_auteur: id,
+      p_compte: id,
+      p_mdp_temporaire: "Essai-refuse-e2e-2026",
+    });
+    // 42501 : droit d'exécution refusé (le rôle `authenticated` n'en a pas).
+    expect(reinitialiser.error?.code ?? null).toBe("42501");
+    expect(reinitialiser.data).toBeNull();
+
+    // Rien n'a changé : le mot de passe reste choisi (sa propre ligne).
+    const { data: profil, error } = await supabase
+      .from("profils")
+      .select("actif, doit_changer_mdp")
+      .eq("id", id)
+      .maybeSingle();
+    expect(error).toBeNull();
+    expect(profil).toEqual({ actif: true, doit_changer_mdp: false });
+  } finally {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+});

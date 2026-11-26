@@ -85,6 +85,13 @@ export const MESSAGES_COMPTE = {
   dernierAdministrateur: "Impossible : il doit rester au moins un administrateur actif.",
   /** Saisie de la désactivation ou de la réactivation mal formée (appel direct). */
   etatInvalide: "Le compte ou l'état demandé n'est pas valide.",
+  /** Compte mal désigné dans une réinitialisation (appel direct, story 3.5). */
+  compteInvalide: "Le compte demandé n'est pas valide.",
+  /**
+   * Réponse `ERREUR_INTERNE` de la réinitialisation (story 3.5), dans
+   * l'encadré de la fenêtre ; la saisie est gardée.
+   */
+  reinitialisationImpossible: "Le mot de passe n'a pas pu être réinitialisé. Réessayez.",
 } as const;
 
 /** Informations générales (écran A3, FR-31), textes de l'UX. */
@@ -244,6 +251,33 @@ export const MESSAGES_COMPTES = {
     /** Toasts de succès (5 s). */
     compteDesactive: "Compte désactivé",
     compteReactive: "Compte réactivé",
+  },
+  /**
+   * « Réinitialiser le mot de passe » de la colonne Actions (story 3.5 ;
+   * FR-23). « 12 caractères minimum » et la panne viennent de
+   * `MESSAGES_COMPTE`.
+   */
+  reinitialisation: {
+    bouton: "Réinitialiser le mot de passe",
+    /** Nom du bouton pour les lecteurs d'écran : « Réinitialiser le mot de passe de Lucas Bernard ». */
+    boutonNom: (nom: string) => `Réinitialiser le mot de passe de ${nom}`,
+    /** Titre de la fenêtre. */
+    titre: (nom: string) => `Réinitialiser le mot de passe de ${nom}`,
+    motDePasse: "Nouveau mot de passe temporaire",
+    generer: "Générer",
+    /** Nom du bouton « Générer » pour les lecteurs d'écran. */
+    genererNom: "Générer un mot de passe temporaire",
+    /** Texte de l'UX, avec le premier mot du nom : « … Lucas devra choisir… ». */
+    texte: (prenom: string) =>
+      `L'ancien mot de passe ne fonctionnera plus. ${prenom} devra choisir un nouveau mot de passe à sa prochaine connexion.`,
+    annuler: "Annuler",
+    reinitialiser: "Réinitialiser",
+    reinitialisationEnCours: "Réinitialisation…",
+    fermer: "Fermer",
+    copier: "Copier",
+    copie: "Copié",
+    /** Toast de succès (5 s), comme à la création. */
+    motDePasseReinitialise: "Mot de passe réinitialisé",
   },
 } as const;
 

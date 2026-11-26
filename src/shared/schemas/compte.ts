@@ -75,3 +75,27 @@ export type DonneesEtatCompte = z.infer<typeof schemaEtatCompte>;
 export function validerEtatCompte(saisie: unknown): Validation<DonneesEtatCompte> {
   return validerSaisie(schemaEtatCompte, CHAMPS_ETAT_COMPTE, saisie);
 }
+
+// ---------------------------------------------------------------------------
+// Réinitialisation du mot de passe (story 3.5 ; FR-23)
+// ---------------------------------------------------------------------------
+
+/** Champs de la réinitialisation, dans l'ordre de la fenêtre. */
+export const CHAMPS_REINITIALISATION = ["compteId", "motDePasseTemporaire"] as const;
+
+export const schemaReinitialisation = z.object({
+  // Identifiant du compte Supabase Auth (UUID), en minuscules comme dans la base.
+  compteId: z
+    .string({ error: MESSAGES_COMPTE.compteInvalide })
+    .regex(FORME_IDENTIFIANT, MESSAGES_COMPTE.compteInvalide)
+    .transform((texte) => texte.toLowerCase()),
+  // Même règle qu'à la création : 12 caractères au moins, jamais nettoyé.
+  motDePasseTemporaire: schemaCompte.shape.motDePasseTemporaire,
+});
+
+/** Réinitialisation vérifiée, prête à être envoyée. */
+export type DonneesReinitialisation = z.infer<typeof schemaReinitialisation>;
+
+export function validerReinitialisation(saisie: unknown): Validation<DonneesReinitialisation> {
+  return validerSaisie(schemaReinitialisation, CHAMPS_REINITIALISATION, saisie);
+}

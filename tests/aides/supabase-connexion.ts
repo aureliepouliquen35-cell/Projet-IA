@@ -68,6 +68,12 @@ import { vi } from "vitest";
 //   Le blocage d'Auth (`auth.admin.updateUserById`, `ban_duration`) est
 //   gardé dans `bannis` ; un compte bloqué reçoit `user_banned` à la
 //   connexion.
+// - Réinitialisation du mot de passe (story 3.5) : `reinitialiser_mdp` par le
+//   client secret, avec les règles de la migration : `NV202` (auteur),
+//   `NV205` (moins de 12 caractères), `NV204` (compte inconnu) ; sinon
+//   « doit changer son mot de passe » et mot de passe temporaire remplacé
+//   (`temporaires`), `actif` intact. `updateUserById` avec `password`
+//   change le mot de passe du compte Auth (`comptes`).
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -359,6 +365,7 @@ export function creerSimulationConnexion() {
       }
       if (nom === "modifier_compte") return modifierCompte(parametres);
       if (nom === "retablir_compte") return retablirCompte(parametres);
+      if (nom === "reinitialiser_mdp") return reinitialiserMdp(parametres);
       return { data: null, error: null };
     },
   }));
@@ -395,10 +402,33 @@ export function creerSimulationConnexion() {
     return { data: null, error: null };
   }
 
+  /** `reinitialiser_mdp` de la migration 3.5. */
+  function reinitialiserMdp(p: Record<string, unknown>): RetourRpc {
+    const auteur = profils.get(String(p.p_auteur));
+    if (!auteur || !auteur.actif || auteur.doit_changer_mdp || auteur.role !== "administrateur") {
+      return { data: null, error: { code: "NV202", message: "Accès refusé" } };
+    }
+    const motDePasse = typeof p.p_mdp_temporaire === "string" ? p.p_mdp_temporaire : "";
+    if (Array.from(motDePasse).length < 12) return { data: null, error: { code: "NV205", message: "trop court" } };
+    const compte = profils.get(String(p.p_compte));
+    if (!compte) return { data: null, error: { code: "NV204", message: "compte introuvable" } };
+    const email = compte.email ?? [...comptes].find(([, c]) => c.id === compte.id)?.[0] ?? "";
+    compte.doit_changer_mdp = true;
+    temporaires.set(compte.id, motDePasse);
+    return { data: { nom: compte.nom, email }, error: null };
+  }
+
   /** Comptes bloqués dans Supabase Auth (identifiants). */
   const bannis = new Set<string>();
-  /** API d'administration d'Auth : blocage (`ban_duration`) ou déblocage (`none`). */
-  const updateUserById = vi.fn(async (id: string, attributs: { ban_duration?: string }) => {
+  /**
+   * API d'administration d'Auth : blocage (`ban_duration`) ou déblocage
+   * (`none`) ; nouveau mot de passe (`password`, story 3.5).
+   */
+  const updateUserById = vi.fn(async (id: string, attributs: { ban_duration?: string; password?: string }) => {
+    if (attributs.password !== undefined) {
+      const compte = [...comptes.values()].find((c) => c.id === id);
+      if (compte) compte.motDePasse = attributs.password;
+    }
     if (attributs.ban_duration === "none") bannis.delete(id);
     else if (attributs.ban_duration) bannis.add(id);
     return { data: { user: { id } }, error: null as ErreurSimulee };

@@ -126,8 +126,8 @@ describe("écran A1 « Comptes »", () => {
     const html = await rendreContenu();
     const lignes = [...html.matchAll(/<tr data-slot="ligne-compte"[^>]*>([\s\S]*?)<\/tr>/g)].map(([, ligne]) => texteDe(ligne));
     expect(lignes).toEqual([
-      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé Réactiver`,
-      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif Désactiver`,
+      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé Réinitialiser le mot de passe Réactiver`,
+      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif Réinitialiser le mot de passe Désactiver`,
     ]);
     expect(html).toMatch(/<th scope="row"[^>]*>Karim Benali<\/th>/);
   });
@@ -143,15 +143,16 @@ describe("écran A1 « Comptes »", () => {
     expect(html).toMatch(/<td[^>]*>Actif<\/td>/);
   });
 
-  it("bouton « Créer un compte » à droite du titre (story 3.2) ; Actions : « Désactiver » ou « Réactiver » seulement (story 3.4)", async () => {
+  it("bouton « Créer un compte » à droite du titre (story 3.2) ; Actions : « Réinitialiser le mot de passe » (3.5), puis « Désactiver » ou « Réactiver » (3.4)", async () => {
     const html = await rendreContenu();
     expect(html).toMatch(/<h1[^>]*>Comptes<\/h1><button[^>]*data-slot="bouton-creer-compte"[^>]*>[\s\S]*?Créer un compte<\/button>/);
-    // « Créer un compte », puis un bouton par ligne.
-    expect(html.match(/<button/g)).toHaveLength(3);
+    // « Créer un compte », puis deux boutons par ligne.
+    expect(html.match(/<button/g)).toHaveLength(5);
+    expect(html.match(/data-slot="reinitialiser-mot-de-passe"/g)).toHaveLength(2);
     expect(html.match(/data-slot="desactiver"/g)).toHaveLength(1);
     expect(html.match(/data-slot="reactiver"/g)).toHaveLength(1);
-    // « Modifier » et « Réinitialiser le mot de passe » : stories 3.3 et 3.5.
-    expect(texteDe(html)).not.toMatch(/Modifier|Réinitialiser/);
+    // « Modifier » : story 3.3.
+    expect(texteDe(html)).not.toMatch(/Modifier/);
   });
 
   it("ni mot de passe, ni empreinte", async () => {

@@ -8,7 +8,7 @@ import { nouveauCodeSupport } from "@/shared/code-support";
 import type { Role } from "@/shared/constantes";
 import { MESSAGES_ACCES_REFUSE, MESSAGES_COMPTE, MESSAGES_PARAMETRES, resumeErreurs } from "@/shared/messages";
 import { echec, succes, type ErreursChamps, type Reponse } from "@/shared/reponse";
-import { validerCompte, validerEtatCompte } from "@/shared/schemas/compte";
+import { validerCompte, validerEtatCompte, validerReinitialisation } from "@/shared/schemas/compte";
 import { validerParametres, type DonneesParametres } from "@/shared/schemas/parametres";
 
 // Comptes internes et informations générales (AD-6, AD-9, AD-13).
@@ -26,6 +26,10 @@ import { validerParametres, type DonneesParametres } from "@/shared/schemas/para
 // Désactivation et réactivation (story 3.4) : `changerEtatCompte`, la base
 // d'abord (`modifier_compte`, règle du dernier administrateur), puis le
 // blocage dans Supabase Auth, avec retour arrière si Auth échoue.
+//
+// Réinitialisation du mot de passe (story 3.5) : `reinitialiserMotDePasse`,
+// la base d'abord (`reinitialiser_mdp`), puis le mot de passe dans Supabase
+// Auth, sans retour arrière.
 //
 // Jamais de mot de passe dans le journal ni dans les messages d'erreur.
 
@@ -379,6 +383,113 @@ async function bloquerDansAuth(client: ClientSecret, id: string, actif: boolean)
   } catch {
     return "injoignable";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Réinitialisation du mot de passe (story 3.5 ; FR-23)
+// ---------------------------------------------------------------------------
+
+/** Refus prévu de `reinitialiser_mdp` : mot de passe temporaire trop court. */
+const REFUS_MOT_DE_PASSE_TROP_COURT = "NV205";
+
+/** Codes de Supabase Auth pour un mot de passe identique à l'actuel : déjà en place. */
+const CODES_MEME_MOT_DE_PASSE = new Set(["same_password"]);
+
+const schemaReinitialisationBase = z.object({
+  nom: z.string(),
+  email: z.string(),
+});
+
+/** Compte dont le mot de passe vient d'être réinitialisé. Jamais le mot de passe. */
+export type MotDePasseReinitialise = { id: string; nom: string; email: string };
+
+/**
+ * Donne au compte un nouveau mot de passe temporaire (FR-23). L'ancien ne
+ * fonctionne plus, et la personne doit en choisir un nouveau à sa prochaine
+ * connexion (I2, par la garde). Un compte désactivé le reste.
+ *
+ * 1. Saisie vérifiée (Zod : identifiant, 12 caractères au moins) :
+ *    `VALIDATION` sans aucun appel.
+ * 2. La base d'abord, par `reinitialiser_mdp` : auteur revérifié,
+ *    « doit changer son mot de passe », empreinte du mot de passe
+ *    temporaire remplacée. Refus : `ACCES_REFUSE` (auteur), `INTROUVABLE`,
+ *    `VALIDATION` (trop court).
+ * 3. Puis Supabase Auth : le mot de passe du compte est remplacé. Si Auth
+ *    échoue, rien n'est défait : l'ancien mot de passe marche encore et
+ *    devra être changé à la connexion ; un nouvel essai répare.
+ * 4. `mot_de_passe_reinitialise` au journal (compte, email, auteur), jamais
+ *    le mot de passe.
+ *
+ * `auteur` : identifiant de l'administrateur, déjà vérifié par
+ * `exigerAdministrateur()`.
+ */
+export async function reinitialiserMotDePasse(
+  saisie: unknown,
+  { auteur }: { auteur: string },
+): Promise<Reponse<MotDePasseReinitialise>> {
+  const validation = validerReinitialisation(saisie);
+  if (!validation.ok) return echecValidation(validation.champs);
+  const { compteId: id, motDePasseTemporaire } = validation.donnees;
+
+  const messagePanne = MESSAGES_COMPTE.reinitialisationImpossible;
+  const action = "reinitialiser_mot_de_passe";
+
+  const client = clientSecret();
+  if (!client) return echec("ERREUR_INTERNE", MESSAGE_CLES_ABSENTES);
+
+  // 1. La base : obligation de changer le mot de passe, nouvelle empreinte.
+  let refus: string | null = null;
+  let reponseBase: unknown = null;
+  try {
+    const { data, error } = await client
+      .rpc("reinitialiser_mdp", { p_auteur: auteur, p_compte: id, p_mdp_temporaire: motDePasseTemporaire })
+      .abortSignal(AbortSignal.timeout(DELAI_MS));
+    if (error) refus = error.code || "inconnu";
+    else reponseBase = data;
+  } catch {
+    refus = "injoignable";
+  }
+
+  if (refus === REFUS_AUTEUR) return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+  if (refus === REFUS_COMPTE_INTROUVABLE) return echec("INTROUVABLE", messagePanne);
+  if (refus === REFUS_MOT_DE_PASSE_TROP_COURT) {
+    return echecValidation({ motDePasseTemporaire: MESSAGES_COMPTE.motDePasseTropCourt });
+  }
+  if (refus) {
+    return erreurImprevue(messagePanne, { action, etape: "reinitialiser_mdp", code_base: refus, compte_id: id });
+  }
+
+  const lu = schemaReinitialisationBase.safeParse(reponseBase);
+  if (!lu.success) {
+    return erreurImprevue(messagePanne, {
+      action,
+      etape: "reinitialiser_mdp",
+      code_base: "reponse_inattendue",
+      compte_id: id,
+    });
+  }
+  const { nom, email } = lu.data;
+
+  // 2. Supabase Auth : l'ancien mot de passe ne fonctionne plus.
+  try {
+    const { error } = await client.auth.admin.updateUserById(id, { password: motDePasseTemporaire });
+    if (error && !(error.code && CODES_MEME_MOT_DE_PASSE.has(error.code))) {
+      if (error.code === "weak_password") {
+        return echecValidation({ motDePasseTemporaire: MESSAGES_COMPTE.motDePasseTropCourt });
+      }
+      return erreurImprevue(messagePanne, {
+        action,
+        etape: "auth",
+        code_base: error.code ?? String(error.status ?? "inconnu"),
+        compte_id: id,
+      });
+    }
+  } catch {
+    return erreurImprevue(messagePanne, { action, etape: "auth", code_base: "injoignable", compte_id: id });
+  }
+
+  await journaliser("info", "mot_de_passe_reinitialise", { compte_id: id, email, auteur });
+  return succes({ id, nom, email });
 }
 
 /** Remet `profils.actif` du compte comme avant. Vrai si c'est fait. */

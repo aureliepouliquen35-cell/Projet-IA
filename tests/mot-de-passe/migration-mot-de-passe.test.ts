@@ -10,7 +10,9 @@ import { LONGUEUR_MINIMALE_MOT_DE_PASSE } from "@/shared/constantes";
 // compte de test).
 
 const DOSSIER = join(process.cwd(), "supabase", "migrations");
-const FICHIERS = readdirSync(DOSSIER).filter((fichier) => fichier.endsWith("_mot_de_passe.sql"));
+// Nom exact après l'horodatage : `…_reinitialiser_mot_de_passe.sql` (story
+// 3.5) finit aussi par `_mot_de_passe.sql`.
+const FICHIERS = readdirSync(DOSSIER).filter((fichier) => /^\d{14}_mot_de_passe\.sql$/.test(fichier));
 const BRUT = FICHIERS.length === 1 ? readFileSync(join(DOSSIER, FICHIERS[0]), "utf8") : "";
 /** Sans les commentaires, en minuscules. */
 const SQL = BRUT.replace(/--.*$/gm, "").toLowerCase();

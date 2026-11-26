@@ -35,6 +35,7 @@ vi.mock("next/navigation", async (original) => ({
 import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
 import { SectionAdministration } from "@/components/interne/section-administration";
 import { createClient } from "@/lib/supabase/server";
+import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
 import { exigerAdministrateur } from "@/server/garde";
 import { lireComptes } from "@/server/lectures/comptes";
 
@@ -173,5 +174,28 @@ describe("RM-7 : chaque page et chaque lecture d'administration vérifient le r�
     const lecture = readFileSync(join(racine, "src", "server", "lectures", "comptes.ts"), "utf8");
     expect(lecture).not.toContain(".from(");
     expect(lecture).toContain('.rpc("lister_comptes")');
+  });
+});
+
+describe("RM-7 : réinitialiser un mot de passe est réservé aux administrateurs (story 3.5)", () => {
+  it("collaborateur qui appelle la Server Function directement : « Accès refusé. », aucun appel, aucun mot de passe changé", async () => {
+    const reponse = await actionReinitialiserMotDePasse({ compteId: ID_SOPHIE, motDePasseTemporaire: "Kp7mWq2xTz9aBc4d" });
+    expect(reponse).toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.creerClientSecret).not.toHaveBeenCalled();
+    expect(simulation.updateUserById).not.toHaveBeenCalled();
+    expect(simulation.profils.get(ID_SOPHIE)!.doit_changer_mdp).toBe(false);
+  });
+
+  it("la Server Function commence par exigerAdministrateur ; la fonction SQL revérifie l'auteur et n'est exécutable que par service_role", () => {
+    const action = readFileSync(join(racine, "src", "server", "actions", "reinitialiser-mot-de-passe.ts"), "utf8");
+    expect(action).toMatch(
+      /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) return echec\("ACCES_REFUSE"/,
+    );
+    const migration = readFileSync(join(racine, "supabase", "migrations", "20261125120000_reinitialiser_mot_de_passe.sql"), "utf8")
+      .replace(/--.*$/gm, "")
+      .toLowerCase();
+    expect(migration).toMatch(/p\.id = p_auteur\s+and p\.actif\s+and not p\.doit_changer_mdp\s+and p\.role = 'administrateur'/);
+    expect(migration).toContain("revoke execute on function public.reinitialiser_mdp(uuid, uuid, text) from authenticated;");
+    expect(migration).toContain("grant execute on function public.reinitialiser_mdp(uuid, uuid, text) to service_role;");
   });
 });

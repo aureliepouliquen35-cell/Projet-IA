@@ -89,3 +89,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-4-desactiver-reactiver-compte.md`
   summary: Exécuter la règle du dernier administrateur (RM-9) et le verrou de `modifier_compte` sur un vrai Postgres, avec deux appels simultanés.
   evidence: Les tests de la story 3.4 passent par une simulation TypeScript et la lecture du texte SQL ; l'e2e n'a volontairement pas d'identifiants administrateur. Réglerait la question : un test d'intégration sur une base locale (`supabase start`) qui lance deux `modifier_compte` en parallèle.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-reinitialiser-mot-de-passe-collegue.md`
+  summary: Exécuter `reinitialiser_mdp` sur un vrai Postgres (forme de la réponse, codes NV202/NV204/NV205, remplacement de l'empreinte, `actif` intact).
+  evidence: Les tests de la story 3.5 lisent le texte SQL et passent par une simulation TypeScript ; l'e2e ne vérifie que le refus `42501`. Réglerait la question : un test d'intégration sur une base locale (`supabase start`).
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-reinitialiser-mot-de-passe-collegue.md`
+  summary: Fermer les sessions déjà ouvertes d'un compte quand son mot de passe est réinitialisé (cas d'un compte piraté).
+  evidence: Aujourd'hui une session ouverte est seulement renvoyée vers I2 à la page suivante, et I2 ne demande pas le mot de passe temporaire ; comportement prévu par la fiche 3.5 pour un mot de passe oublié.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-reinitialiser-mot-de-passe-collegue.md`
+  summary: Limiter le mot de passe temporaire à 72 octets (création et réinitialisation), comme le mot de passe choisi sur I2.
+  evidence: `schemaCompte.motDePasseTemporaire` n'a pas de maximum ; au-delà, Supabase Auth refuse après l'écriture en base, et l'écran répond « Réessayez » à chaque essai.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-reinitialiser-mot-de-passe-collegue.md`
+  summary: Donner un délai maximal aux appels de l'API d'administration de Supabase Auth (`createUser`, `updateUserById`, `deleteUser`).
+  evidence: Les appels rpc ont `DELAI_MS`, pas ceux d'Auth dans `src/server/admin/index.ts` ; un Auth qui ne répond pas laisse la fenêtre bloquée en envoi.

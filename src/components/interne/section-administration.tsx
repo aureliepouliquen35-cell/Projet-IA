@@ -1,16 +1,17 @@
-import { Tags, Users } from "lucide-react";
+import { Info, Tags, Users } from "lucide-react";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { LienMenu, VueLienMenu } from "@/components/interne/lien-menu";
 import { SuiviRole } from "@/components/interne/suivi-role";
 import { exigerUtilisateur } from "@/server/garde";
-import { ADRESSE_CATEGORIES, ADRESSE_COMPTES } from "@/shared/acces";
+import { ADRESSE_CATEGORIES, ADRESSE_COMPTES, ADRESSE_INFORMATIONS } from "@/shared/acces";
 import { MESSAGES_INTERNE } from "@/shared/messages";
 
 // Section « Administration » du menu latéral (EXPERIENCE.md, Information
-// Architecture ; FR-24, RM-7) : son titre, puis « Comptes » (écran A1) et
-// « Catégories » (écran A2, story 4.1).
+// Architecture ; FR-24, RM-7) : son titre, puis « Comptes » (écran A1),
+// « Catégories » (écran A2, story 4.1) et « Informations générales »
+// (écran A3, story 4.3).
 // Rendue seulement pour un administrateur : pour un collaborateur, rien,
 // ni titre, ni lien. Le rôle est relu dans `profils` à chaque rendu du menu
 // (`exigerUtilisateur`, AD-7).
@@ -24,12 +25,11 @@ import { MESSAGES_INTERNE } from "@/shared/messages";
 // rétrogradé perd donc la section à sa prochaine action ; la page A1, elle,
 // refuse elle-même (S1).
 //
-// Cacher la section n'est pas une protection : les pages A1 et A2, leurs
+// Cacher la section n'est pas une protection : les pages A1, A2 et A3, leurs
 // lectures et les fonctions SQL vérifient elles-mêmes le rôle.
 //
 // Lit les cookies : à placer sous `<Suspense fallback={null}>` (Cache
-// Components). « Informations générales » (story 4.3) et « Données
-// personnelles » (epic 6) viendront s'ajouter ici.
+// Components). « Données personnelles » (epic 6) viendra s'ajouter ici.
 
 const ID_TITRE = "titre-section-administration";
 
@@ -75,6 +75,19 @@ export async function SectionAdministration() {
             >
               <LienMenu href={ADRESSE_CATEGORIES} icone={<Tags aria-hidden="true" />}>
                 {MESSAGES_INTERNE.categories}
+              </LienMenu>
+            </Suspense>
+          </li>
+          <li>
+            <Suspense
+              fallback={
+                <VueLienMenu href={ADRESSE_INFORMATIONS} icone={<Info aria-hidden="true" />} actif={false}>
+                  {MESSAGES_INTERNE.informations}
+                </VueLienMenu>
+              }
+            >
+              <LienMenu href={ADRESSE_INFORMATIONS} icone={<Info aria-hidden="true" />}>
+                {MESSAGES_INTERNE.informations}
               </LienMenu>
             </Suspense>
           </li>

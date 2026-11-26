@@ -116,7 +116,7 @@ describe("lien « Catégories » de la section Administration", () => {
 
   it("administrateur : « Catégories » (icône Tags) vers /admin/categories, après « Comptes »", async () => {
     const html = await rendreSection();
-    expect(texteDe(html)).toBe("Administration Comptes Catégories");
+    expect(texteDe(html)).toBe("Administration Comptes Catégories Informations générales");
     expect(html).toMatch(/<a[^>]*href="\/admin\/categories"[^>]*>(?:(?!<\/a>).)*lucide-tags(?:(?!<\/a>).)*Catégories<\/span><\/a>/);
     expect(html.indexOf('href="/admin/comptes"')).toBeLessThan(html.indexOf('href="/admin/categories"'));
   });

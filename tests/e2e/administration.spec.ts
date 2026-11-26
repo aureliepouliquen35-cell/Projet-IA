@@ -34,6 +34,13 @@ import { identifiantsE2e } from "./environnement";
 // `modifier_categorie` refuse aussi la désactivation et la suppression
 // (demande la migration `20261127090000_desactiver_supprimer_categorie.sql`).
 //
+// Story 4.3 : le menu n'a pas non plus « Informations générales » ; à
+// l'adresse `/admin/informations`, le collaborateur voit S1, sans aucune
+// information de contact ni formulaire, et les vraies fonctions SQL
+// `lire_parametres_administration` et `modifier_parametres` refusent son
+// appel direct (NV202) : les informations de dev ne sont jamais modifiées
+// (demande la migration `20261127120000_informations_generales.sql`).
+//
 // Demande la migration `20261124160000_comptes_administration.sql` sur dev ;
 // les tests des catégories demandent aussi
 // `20261126150000_categories_administration.sql`.
@@ -316,6 +323,62 @@ test("collaborateur : les vraies fonctions SQL des catégories refusent un appel
     });
     expect(supprimer.error?.code ?? null).toBe("NV202");
     expect(supprimer.data).toBeNull();
+  } finally {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+});
+
+test("collaborateur : ni « Informations générales » dans le menu, ni écran A3 à l'adresse forcée (S1)", async ({ page }) => {
+  // Story 4.3. Demande la migration `20261127120000_informations_generales.sql` sur dev.
+  await seConnecter(page);
+  await expect(page.getByRole("link", { name: "Informations générales" })).toHaveCount(0);
+
+  const reponse = await page.goto("/admin/informations");
+  expect(reponse?.ok()).toBe(true);
+  await expect(page.getByRole("heading", { level: 1, name: S1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/informations$/);
+  await expect(page.locator("[data-slot=menu-lateral]")).toBeVisible();
+  await expect(page.locator("[data-slot=informations-generales]")).toHaveCount(0);
+  await expect(page.getByLabel("Email de contact")).toHaveCount(0);
+  const html = (await reponse?.text()) ?? "";
+  expect(html).not.toContain('data-slot="informations-generales"');
+  expect(html).not.toContain("Téléphone de contact");
+  expect(html).not.toContain("Contact pour les données personnelles");
+});
+
+test("collaborateur : les vraies fonctions SQL des informations générales refusent un appel direct (NV202)", async () => {
+  // Story 4.3 : exécutables par `authenticated`, mais chacune vérifie
+  // d'abord l'administrateur (`exiger_administrateur`). L'enregistrement
+  // essayé porte un email de contact mal formé : même un refus manquant
+  // s'arrêterait sur NV103, avant toute écriture ; les informations de dev
+  // ne sont jamais modifiées. Demande la migration
+  // `20261127120000_informations_generales.sql` sur dev.
+  const { email, motDePasse } = identifiantsE2e(process.env);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  expect(url, "NEXT_PUBLIC_SUPABASE_URL dans .env.local").not.toBe("");
+  expect(cle, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY dans .env.local").not.toBe("");
+
+  const supabase = createClient(url, cle, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: erreurConnexion } = await supabase.auth.signInWithPassword({ email, password: motDePasse });
+  expect(erreurConnexion?.code ?? null, "connexion du compte de test").toBeNull();
+  try {
+    // Un PGRST202 voudrait dire que la migration 20261127120000 manque sur dev.
+    const lire = await supabase.rpc("lire_parametres_administration");
+    expect(lire.error?.code ?? null).toBe("NV202");
+    expect(lire.data).toBeNull();
+
+    // Avant la migration 20261127120000, ce refus serait 42501 (droit
+    // réservé à `service_role`) : NV202 montre la nouvelle version.
+    const modifier = await supabase.rpc("modifier_parametres", {
+      p_telephone: null,
+      p_email_contact: "essai-e2e-refuse",
+      p_contact_donnees: "Essai e2e refusé",
+    });
+    expect(modifier.error?.code ?? null).toBe("NV202");
+    expect(modifier.data).toBeNull();
   } finally {
     await supabase.auth.signOut({ scope: "local" });
   }

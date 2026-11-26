@@ -38,6 +38,7 @@ vi.mock("next/navigation", async (original) => ({
 
 import { ContenuCategories } from "@/app/(interne)/admin/categories/contenu-categories";
 import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
+import { ContenuInformations } from "@/app/(interne)/admin/informations/contenu-informations";
 import { SectionAdministration } from "@/components/interne/section-administration";
 import { createClient } from "@/lib/supabase/server";
 import { actionAjouterCategorie } from "@/server/actions/ajouter-categorie";
@@ -45,6 +46,7 @@ import { actionChangerEtatCategorie } from "@/server/actions/changer-etat-catego
 import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
 import { actionCreerCompte } from "@/server/actions/creer-compte";
 import { actionModifierCompte } from "@/server/actions/modifier-compte";
+import { actionModifierParametres } from "@/server/actions/modifier-parametres";
 import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
 import { actionSupprimerCategorie } from "@/server/actions/supprimer-categorie";
 import { actionSupprimerDemande } from "@/server/actions/supprimer-demande";
@@ -52,12 +54,20 @@ import { exigerAdministrateur } from "@/server/garde";
 import { actionRenommerCategorie } from "@/server/actions/renommer-categorie";
 import { lireCategoriesAdministration } from "@/server/lectures/categories";
 import { lireComptes } from "@/server/lectures/comptes";
+import { lireInformationsGenerales } from "@/server/lectures/parametres";
 
 import { texteDe } from "../aides/formulaire-depot";
 import { CATEGORIES_DEPART, fabriquerDemandes, ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion";
 
 const racine = process.cwd();
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
+
+/** Saisie valide de l'écran A3 (story 4.3). */
+const INFORMATIONS_ESSAI = {
+  telephone: "02 98 00 11 22",
+  emailContact: "accueil@nova-services.fr",
+  contactDonnees: "dpo@nova-services.fr",
+};
 
 /**
  * Début de chaque Server Function d'administration (commentaires retirés) :
@@ -67,7 +77,7 @@ const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
 const DEBUT_ACTION_RESERVEE =
   /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) \{\s*refresh\(\);\s*return echec\("ACCES_REFUSE"/;
 
-/** Server Functions d'administration (écrans A1 et A2, suppression d'une demande), toutes réservées aux administrateurs. */
+/** Server Functions d'administration (écrans A1, A2 et A3, suppression d'une demande), toutes réservées aux administrateurs. */
 const ACTIONS_ADMINISTRATION = [
   "creer-compte.ts",
   "changer-etat-compte.ts",
@@ -78,6 +88,7 @@ const ACTIONS_ADMINISTRATION = [
   "renommer-categorie.ts",
   "changer-etat-categorie.ts",
   "supprimer-categorie.ts",
+  "modifier-parametres.ts",
 ];
 
 function fichiers(dossier: string): string[] {
@@ -106,10 +117,10 @@ describe("RM-7 : un collaborateur ne voit aucune administration", () => {
     expect(renderToStaticMarkup(await SectionAdministration())).toBe("");
   });
 
-  it("le même menu, pour un administrateur : la section, « Comptes » et « Catégories »", async () => {
+  it("le même menu, pour un administrateur : la section, « Comptes », « Catégories » et « Informations générales »", async () => {
     simulation.session.id = ID_SOPHIE;
     const section = await SectionAdministration();
-    expect(texteDe(renderToStaticMarkup(section))).toBe("Administration Comptes Catégories");
+    expect(texteDe(renderToStaticMarkup(section))).toBe("Administration Comptes Catégories Informations générales");
   });
 });
 
@@ -286,6 +297,7 @@ describe("RM-7 : un administrateur rétrogradé perd l'administration à sa proc
     ["renommer une catégorie", () => actionRenommerCategorie({ categorieId: CATEGORIES_DEPART[4].id, nom: "Divers" })],
     ["désactiver une catégorie", () => actionChangerEtatCategorie({ categorieId: CATEGORIES_DEPART[4].id, active: false })],
     ["supprimer une catégorie", () => actionSupprimerCategorie({ categorieId: CATEGORIES_DEPART[4].id })],
+    ["modifier les informations générales", () => actionModifierParametres(INFORMATIONS_ESSAI)],
   ])("%s : « Accès refusé. », rien n'est appelé, et la page est recalculée (S1, menu sans Administration)", async (_, agir) => {
     await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
@@ -442,6 +454,98 @@ describe("RM-7 : les catégories (écran A2) sont réservées aux administrateur
       const source = readFileSync(fichier, "utf8");
       expect(source, relative(racine, fichier)).not.toMatch(
         /\.from\(\s*["'`]categories["'`]\s*\)\s*\.(insert|update|upsert|delete)\(/,
+      );
+    }
+  });
+});
+
+describe("RM-7 : les informations générales (écran A3) sont réservées aux administrateurs (story 4.3)", () => {
+  const MIGRATION_INFORMATIONS = readFileSync(
+    join(racine, "supabase", "migrations", "20261127120000_informations_generales.sql"),
+    "utf8",
+  )
+    .replace(/--.*$/gm, "")
+    .toLowerCase();
+  const DEPART = () => ({ ...simulation.contact });
+
+  it("page « Informations générales » tapée par un collaborateur : écran S1 seul, aucune donnée, aucune lecture", async () => {
+    const avant = DEPART();
+    const html = renderToStaticMarkup(await ContenuInformations());
+    expect(texteDe(html)).toBe(`${S1} Retour aux demandes`);
+    expect(html).not.toMatch(/informations-generales|Téléphone de contact|nova-services\.example|01 99 00 00 00/);
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+    expect(DEPART()).toEqual(avant);
+  });
+
+  it("lecture appelée directement : refusée, sans appel à la base", async () => {
+    await expect(lireInformationsGenerales()).resolves.toEqual({ ok: false, accesRefuse: true });
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+  });
+
+  it("Server Function appelée directement : « Accès refusé. », rien n'est lu ni écrit, page recalculée", async () => {
+    const avant = DEPART();
+    await expect(actionModifierParametres(INFORMATIONS_ESSAI)).resolves.toEqual({
+      ok: false,
+      code: "ACCES_REFUSE",
+      message: "Accès refusé.",
+    });
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+    expect(simulation.creerClientSecret).not.toHaveBeenCalled();
+    expect(DEPART()).toEqual(avant);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  // Simulation seulement : le refus de la vraie base est vérifié sur dev par
+  // `tests/e2e/administration.spec.ts`.
+  it.each([
+    ["lire_parametres_administration", {}],
+    [
+      "modifier_parametres",
+      { p_telephone: "02 98 00 11 22", p_email_contact: "accueil@nova-services.fr", p_contact_donnees: "dpo@nova-services.fr" },
+    ],
+  ])("règle simulée de %s, appelée directement avec la session du collaborateur : NV202, rien n'est écrit", async (nom, parametres) => {
+    const avant = DEPART();
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(nom, parametres).abortSignal(AbortSignal.timeout(1000));
+    expect(data).toBeNull();
+    expect(error).toMatchObject({ code: "NV202" });
+    expect(DEPART()).toEqual(avant);
+  });
+
+  it("la lecture des informations commence par exigerAdministrateur et ne passe que par la fonction SQL", () => {
+    const source = readFileSync(join(racine, "src", "server", "lectures", "parametres.ts"), "utf8");
+    expect(source).toMatch(
+      /cache\(async \(\): Promise<LectureInformations> => \{\s*if \(!\(await exigerAdministrateur\(\)\)\) return ACCES_REFUSE;/,
+    );
+    expect(source).not.toContain(".from(");
+    expect(source).toContain('.rpc("lire_parametres_administration")');
+  });
+
+  it("chaque fonction SQL vérifie l'appelant connecté (exiger_administrateur) ; jamais exécutable par anon", () => {
+    const corps = (nom: string) =>
+      MIGRATION_INFORMATIONS.match(
+        new RegExp(`create (?:or replace )?function public\\.${nom}\\([^)]*\\)[\\s\\S]*?as \\$\\$([\\s\\S]*?)\\$\\$;`),
+      )?.[1] ?? "";
+    expect(corps("lire_parametres_administration")).toMatch(/\bbegin\s+perform public\.exiger_administrateur\(\);/);
+    expect(corps("modifier_parametres")).toMatch(
+      /\bbegin\s+if auth\.uid\(\) is not null then\s+perform public\.exiger_administrateur\(\);\s+end if;/,
+    );
+    expect(MIGRATION_INFORMATIONS).toMatch(/security definer\s+set search_path = ''/);
+    for (const signature of ["public.lire_parametres_administration()", "public.modifier_parametres(text, text, text)"]) {
+      for (const role of ["public", "anon"]) {
+        expect(MIGRATION_INFORMATIONS).toContain(`revoke execute on function ${signature} from ${role};`);
+      }
+      expect(MIGRATION_INFORMATIONS).toContain(`grant execute on function ${signature} to authenticated;`);
+    }
+    expect(MIGRATION_INFORMATIONS).toContain("revoke execute on function public.lire_parametres_administration() from service_role;");
+  });
+
+  it("l'application n'écrit jamais directement dans parametres", () => {
+    const code = fichiers(join(racine, "src")).filter((f) => /\.(ts|tsx)$/.test(f));
+    for (const fichier of code) {
+      const source = readFileSync(fichier, "utf8");
+      expect(source, relative(racine, fichier)).not.toMatch(
+        /\.from\(\s*["'`]parametres["'`]\s*\)\s*\.(insert|update|upsert|delete)\(/,
       );
     }
   });

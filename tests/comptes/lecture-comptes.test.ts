@@ -33,6 +33,7 @@ describe("exigerAdministrateur", () => {
     await expect(exigerAdministrateur()).resolves.toEqual({
       id: ID_SOPHIE,
       nom: "Sophie Martin",
+      email: EMAIL_SOPHIE,
       role: "administrateur",
       doitChangerMdp: false,
     });

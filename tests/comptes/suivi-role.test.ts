@@ -228,7 +228,7 @@ describe("simple signal d'affichage, jamais une protection", () => {
 
   it("la garde relit toujours le rôle dans profils", () => {
     const garde = readFileSync(join(racine, "src/server/garde/index.ts"), "utf8");
-    expect(garde).toContain('.select("id, nom, role, actif, doit_changer_mdp")');
+    expect(garde).toContain('.select("id, nom, email, role, actif, doit_changer_mdp")');
     expect(garde).not.toMatch(/nova_role|COOKIE_ROLE/);
   });
 });

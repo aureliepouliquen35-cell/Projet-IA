@@ -18,7 +18,7 @@ import { ROLES, type Role } from "@/shared/constantes";
 // sa Server Function, par `exigerChangementMotDePasse()` ; chaque page,
 // lecture et Server Function d'administration, par `exigerAdministrateur()`.
 //
-// La session vient des cookies (vérifiée par `getClaims`) ; le nom, le rôle,
+// La session vient des cookies (vérifiée par `getClaims`) ; le nom, l'email, le rôle,
 // l'état du compte et « doit changer son mot de passe » sont **relus dans
 // `profils`** à chaque requête, avec la session de la personne (règle RLS
 // « sa propre ligne »). Le rôle n'est jamais lu dans les métadonnées du
@@ -36,6 +36,11 @@ import { ROLES, type Role } from "@/shared/constantes";
 export type UtilisateurConnecte = {
   id: string;
   nom: string;
+  /**
+   * Email du profil (`profils.email`), écrit comme auteur au journal
+   * (`parametres_modifies`, story 4.3).
+   */
+  email: string;
   role: Role;
   /** Vrai tant que le mot de passe temporaire n'a pas été remplacé (I2). */
   doitChangerMdp: boolean;
@@ -72,7 +77,7 @@ const lireSession = cache(async (): Promise<LectureSession> => {
 
   const { data: profil, error } = await supabase
     .from("profils")
-    .select("id, nom, role, actif, doit_changer_mdp")
+    .select("id, nom, email, role, actif, doit_changer_mdp")
     .eq("id", id)
     .abortSignal(AbortSignal.timeout(DELAI_MS))
     .maybeSingle();
@@ -82,15 +87,21 @@ const lireSession = cache(async (): Promise<LectureSession> => {
   if (!profil) return SANS_UTILISATEUR;
   if (profil.actif === false) return { utilisateur: null, desactive: true };
   if (profil.actif !== true) return SANS_UTILISATEUR;
-  if (typeof profil.nom !== "string" || !estUnRole(profil.role)) {
-    throw new Error("Le profil lu n'a pas de nom ou de rôle reconnu.");
+  if (typeof profil.nom !== "string" || typeof profil.email !== "string" || !estUnRole(profil.role)) {
+    throw new Error("Le profil lu n'a pas de nom, d'email ou de rôle reconnu.");
   }
   if (typeof profil.doit_changer_mdp !== "boolean") {
     throw new Error("Le profil lu ne dit pas si le mot de passe doit être changé.");
   }
 
   return {
-    utilisateur: { id, nom: profil.nom, role: profil.role, doitChangerMdp: profil.doit_changer_mdp },
+    utilisateur: {
+      id,
+      nom: profil.nom,
+      email: profil.email,
+      role: profil.role,
+      doitChangerMdp: profil.doit_changer_mdp,
+    },
     desactive: false,
   };
 });

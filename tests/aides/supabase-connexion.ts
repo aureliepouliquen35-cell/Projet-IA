@@ -99,6 +99,15 @@ import { vi } from "vitest";
 //   (une seule opération par appel) ; dernière catégorie active : `NV503` ;
 //   suppression d'une catégorie utilisée : `NV504` ; réactivation d'un nom
 //   déjà pris : `NV501`. `lire_demande` dit si la catégorie est active.
+// - Informations générales de l'écran A3 (story 4.3) :
+//   `lire_parametres_administration` et `modifier_parametres` par le client
+//   de session, sur une copie en mémoire (`contact` : téléphone, email de
+//   contact, contact données ; valeurs de la migration 1.3 à chaque
+//   `reinitialiser`), avec les règles de la migration : refus `NV202` sauf
+//   pour l'administrateur actif de la session ; email mal formé : `NV103` ;
+//   contact données vide : `23514` ; téléphone vide : `null`. La lecture de
+//   `profils` donne aussi l'email du profil (celui du compte Auth par
+//   défaut), lu par la garde.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -194,6 +203,9 @@ export type DemandeSimulee = {
 
 /** Contact données de la migration 1.3 (valeur fictive), lu par `lire_formulaire_saisie`. */
 export const CONTACT_DONNEES_SIMULE = "donnees@nova-services.example";
+/** Téléphone et email de contact de la migration 1.3 (valeurs fictives), lus par l'écran A3. */
+export const TELEPHONE_SIMULE = "01 99 00 00 00";
+export const EMAIL_CONTACT_SIMULE = "contact@nova-services.example";
 
 /**
  * Un événement de l'historique, tel que `lire_demande` le renvoie.
@@ -339,8 +351,17 @@ export function creerSimulationConnexion() {
   const demandes: DemandeSimulee[] = [];
   /** Catégories en base, lues par `lister_categories` et le filtre Catégorie. */
   const categories: CategorieSimulee[] = [];
-  /** Contact données des paramètres de Nova, lu par `lire_formulaire_saisie`. */
-  const contact = { donnees: CONTACT_DONNEES_SIMULE };
+  /**
+   * Informations générales de Nova (`parametres`) : le contact données, lu
+   * par `lire_formulaire_saisie` ; les trois, lues par
+   * `lire_parametres_administration` et remplacées par `modifier_parametres`
+   * (story 4.3).
+   */
+  const contact: { donnees: string; telephone: string | null; email: string } = {
+    donnees: CONTACT_DONNEES_SIMULE,
+    telephone: TELEPHONE_SIMULE,
+    email: EMAIL_CONTACT_SIMULE,
+  };
   /** Identifiant de la catégorie d'une demande (`categorie_id`, sinon d'après son nom). */
   const categorieDe = (d: DemandeSimulee) =>
     d.categorie_id ?? categories.find((c) => c.nom === d.categorie)?.id ?? null;
@@ -545,7 +566,8 @@ export function creerSimulationConnexion() {
       void colonnes;
       if (pannesRpc.profils) return pannesRpc.profils;
       const profil = session.id === id ? profils.get(id) : undefined;
-      return { data: profil ?? null, error: null };
+      // `profils.email` n'est jamais vide en base : celui du compte Auth par défaut.
+      return { data: profil ? { ...profil, email: emailDuProfil(profil) } : null, error: null };
     },
   );
   const from = vi.fn((table: string) => {
@@ -561,6 +583,11 @@ export function creerSimulationConnexion() {
       }),
     };
   });
+  /** Email d'un profil : `email`, sinon celui de son compte Auth (`comptes`). */
+  function emailDuProfil(p: ProfilSimule): string | undefined {
+    return p.email ?? [...comptes].find(([, c]) => c.id === p.id)?.[0];
+  }
+
   /** Faux (refus NV201) sauf pour le profil actif, au mot de passe choisi, de la session. */
   function utilisateurInterne(): boolean {
     const profil = session.id ? profils.get(session.id) : undefined;
@@ -575,7 +602,7 @@ export function creerSimulationConnexion() {
   /** `lister_comptes` de la migration 3.1 : tous les profils, triés par nom puis email. */
   function listerComptes(): RetourRpc {
     if (!administrateur()) return { data: null, error: { code: "NV202", message: "Accès refusé" } };
-    const emailDe = (p: ProfilSimule) => p.email ?? [...comptes].find(([, c]) => c.id === p.id)?.[0] ?? "";
+    const emailDe = (p: ProfilSimule) => emailDuProfil(p) ?? "";
     const comparer = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
     const lignes = [...profils.values()]
       .map((p) => ({ id: p.id, nom: p.nom, email: emailDe(p), role: p.role, actif: p.actif }))
@@ -700,6 +727,36 @@ export function creerSimulationConnexion() {
     return retour;
   }
 
+  /** `lire_parametres_administration` de la migration 4.3. */
+  function lireParametresAdministration(): RetourRpc {
+    if (!administrateur()) return REFUS_ADMINISTRATEUR;
+    return {
+      data: { telephone: contact.telephone, email_contact: contact.email, contact_donnees: contact.donnees },
+      error: null,
+    };
+  }
+
+  /**
+   * `modifier_parametres` de la migration 4.3, appelée avec la session : sans
+   * session, droit refusé (`anon`, 42501) ; sinon refus NV202 sauf pour un
+   * administrateur ; email de contact mal formé : NV103 ; contact données
+   * vide : 23514. Espaces de bord retirés, téléphone vide enregistré `null`.
+   */
+  function modifierParametres(p: Record<string, unknown>): RetourRpc {
+    if (!session.id) return { data: null, error: { code: "42501", message: "permission denied" } };
+    if (!administrateur()) return REFUS_ADMINISTRATEUR;
+    const email = btrim(p.p_email_contact);
+    if (email === null || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { data: null, error: { code: "NV103", message: "email de contact mal formé" } };
+    }
+    const contactDonnees = btrim(p.p_contact_donnees);
+    if (!contactDonnees) return { data: null, error: { code: "23514", message: "contrainte" } };
+    contact.telephone = btrim(p.p_telephone) || null;
+    contact.email = email;
+    contact.donnees = contactDonnees;
+    return { data: null, error: null };
+  }
+
   /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
   const rpcSession = vi.fn((nom: string, parametres: Record<string, unknown> = {}) => ({
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
@@ -711,6 +768,8 @@ export function creerSimulationConnexion() {
       if (nom === "lister_categories_administration") return listerCategoriesAdministration();
       if (nom === "ajouter_categorie") return ajouterCategorie(parametres);
       if (nom === "modifier_categorie") return modifierCategorie(parametres);
+      if (nom === "lire_parametres_administration") return lireParametresAdministration();
+      if (nom === "modifier_parametres") return modifierParametres(parametres);
       if (
         ![
           "compter_a_traiter",
@@ -917,6 +976,8 @@ export function creerSimulationConnexion() {
     categories.length = 0;
     categories.push(...CATEGORIES_DEPART.map((c) => ({ ...c })));
     contact.donnees = CONTACT_DONNEES_SIMULE;
+    contact.telephone = TELEPHONE_SIMULE;
+    contact.email = EMAIL_CONTACT_SIMULE;
     cookiesRecus.clear();
     cookiesPoses.clear();
     bannis.clear();

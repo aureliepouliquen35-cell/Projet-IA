@@ -132,3 +132,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-desactiver-reactiver-supprimer-categorie.md`
   summary: La sélection rendue au bouton « Désactiver »/« Réactiver » et le câblage de la fenêtre « Supprimer » (avec état) ne sont exécutés par aucun test.
   evidence: vitest tourne sans DOM (`environment: "node"`), sans jsdom ni testing-library ; seules les fonctions pures sont essayées, comme pour A1 et la 4.1.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-modifier-informations-contact.md`
+  summary: Faire tourner sur une vraie base le chemin administrateur de A3 (lire_parametres_administration, modifier_parametres avec la session) et l'installation (modifier_parametres avec la clé secrète) après la migration 20261127120000.
+  evidence: Seul l'e2e collaborateur (NV202) touche la vraie base ; renommer une clé du jsonb ou rendre le contrôle administrateur inconditionnel passerait tous les tests automatiques. Il faut un compte administrateur e2e (même report qu'en 4.1 et 4.2).
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-modifier-informations-contact.md`
+  summary: Tester avec un vrai rendu interactif le formulaire A3 (envoi, sélection de l'encadré après un refus, toast).
+  evidence: Le câblage de InformationsGeneralesFormulaire n'est vérifié que sur le texte du fichier ; vitest n'a pas de DOM dans le projet (même report qu'en 4.1 et 4.2).

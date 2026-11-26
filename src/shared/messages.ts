@@ -110,8 +110,28 @@ export const MESSAGES_PARAMETRES = {
     "Le contact pour les données personnelles",
     LONGUEURS_MAXIMALES_PARAMETRES.contactDonnees,
   ),
-  /** Erreur technique d'A3 : rien n'est modifié. */
+  /** Erreur technique d'A3 : rien n'est modifié, la saisie est gardée. */
   enregistrementImpossible: "Les informations n'ont pas pu être enregistrées. Réessayez.",
+  /**
+   * Écran A3 « Informations générales » (story 4.3). Titre, aperçus (aide
+   * sous chaque champ) et erreur de lecture : textes absents de l'UX,
+   * validés par Aurel le 26 nov. 2026.
+   */
+  titre: "Informations générales",
+  telephone: "Téléphone de contact",
+  emailContact: "Email de contact",
+  contactDonnees: "Contact pour les données personnelles",
+  /** Aperçus : où chaque information apparaît aux demandeurs. */
+  apercuTelephone: "Affiché sur l'écran de confirmation et dans le message d'erreur du formulaire.",
+  apercuEmailContact: "Affiché sur l'écran de confirmation et dans le message d'erreur du formulaire.",
+  apercuContactDonnees: "Affiché dans la mention sur les données personnelles du formulaire.",
+  enregistrer: "Enregistrer",
+  enregistrementEnCours: "Enregistrement…",
+  /** Toast de succès (5 s). */
+  misesAJour: "Informations mises à jour. Elles sont visibles immédiatement.",
+  /** État d'erreur de la lecture, suivi de « Réessayer » (`BoutonReessayer`). */
+  erreur: "Impossible de charger les informations.",
+  chargement: "Chargement…",
 } as const;
 
 /**
@@ -187,6 +207,8 @@ export const MESSAGES_INTERNE = {
   comptes: "Comptes",
   /** Écran A2 (story 4.1). */
   categories: "Catégories",
+  /** Écran A3 (story 4.3). */
+  informations: "Informations générales",
   version: (version: string) => `Version v${version}`,
 } as const;
 

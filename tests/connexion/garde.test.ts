@@ -15,7 +15,7 @@ vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 import { exigerAdministrateur, exigerChangementMotDePasse, exigerUtilisateur, lireUtilisateur } from "@/server/garde";
 import { COOKIE_MESSAGE_CONNEXION, dechiffrerPassage } from "@/server/passage";
 
-import { ID_KARIM } from "../aides/supabase-connexion";
+import { EMAIL_KARIM, ID_KARIM } from "../aides/supabase-connexion";
 
 beforeEach(() => {
   simulation.reinitialiser();
@@ -31,16 +31,17 @@ async function renvoi(): Promise<unknown> {
 }
 
 describe("lireUtilisateur", () => {
-  it("personne connectée et active : identifiant, nom et rôle lus dans profils", async () => {
+  it("personne connectée et active : identifiant, nom, email (story 4.3) et rôle lus dans profils", async () => {
     simulation.session.id = ID_KARIM;
     await expect(lireUtilisateur()).resolves.toEqual({
       id: ID_KARIM,
       nom: "Karim Benali",
+      email: EMAIL_KARIM,
       role: "collaborateur",
       doitChangerMdp: false,
     });
     expect(simulation.from).toHaveBeenCalledWith("profils");
-    expect(simulation.lectureProfils).toHaveBeenCalledWith("id, nom, role, actif, doit_changer_mdp", ID_KARIM);
+    expect(simulation.lectureProfils).toHaveBeenCalledWith("id, nom, email, role, actif, doit_changer_mdp", ID_KARIM);
   });
 
   it("le rôle vient de profils, jamais de la session", async () => {
@@ -96,6 +97,12 @@ describe("lireUtilisateur", () => {
     simulation.session.id = ID_KARIM;
     simulation.profils.get(ID_KARIM)!.role = "superviseur";
     await expect(lireUtilisateur()).rejects.toThrow(/rôle/);
+  });
+
+  it("email qui n'est pas un texte (story 4.3) : erreur", async () => {
+    simulation.session.id = ID_KARIM;
+    (simulation.profils.get(ID_KARIM) as unknown as { email: unknown }).email = 42;
+    await expect(lireUtilisateur()).rejects.toThrow(/email/);
   });
 });
 

@@ -29,6 +29,12 @@ export const ADRESSE_COMPTES = "/admin/comptes";
 export const ADRESSE_CATEGORIES = "/admin/categories";
 
 /**
+ * Écran A3 « Informations générales » (story 4.3), réservé aux
+ * administrateurs (FR-31, RM-7).
+ */
+export const ADRESSE_INFORMATIONS = "/admin/informations";
+
+/**
  * Débuts d'adresse des pages internes. Seules ces pages demandent une
  * session : les pages publiques (`/`, `/confirmation`) et les adresses
  * inconnues (S2, comme `/inscription`) n'en ont pas besoin.

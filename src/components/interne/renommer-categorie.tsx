@@ -13,6 +13,8 @@ import {
   type Ref,
 } from "react";
 
+import { EtatCategorie } from "@/components/interne/etat-categorie";
+import { SupprimerCategorie } from "@/components/interne/supprimer-categorie";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { afficherSucces } from "@/components/ui/sonner";
@@ -23,7 +25,11 @@ import { echec, type Reponse } from "@/shared/reponse";
 import { erreurNomCategorie, erreurPendantSaisie } from "@/shared/schemas/categorie";
 
 // Une ligne de la liste A2 et son « Renommer » (story 4.1 ; EXPERIENCE.md,
-// A2 ; FR-26) : Nom · État · Nombre de demandes · Actions.
+// A2 ; FR-26) : Nom · État · Nombre de demandes · Actions. En lecture,
+// « Renommer » est suivi de « Désactiver » ou « Réactiver »
+// (`etat-categorie.tsx`) et de « Supprimer » si la catégorie n'a aucune
+// demande (`supprimer-categorie.tsx`, story 4.2) ; ces actions sont cachées
+// pendant le renommage.
 //
 // - « Renommer » : le nom devient un champ modifiable sur la ligne
 //   (prérempli, sélectionné), avec « Enregistrer » et « Annuler » dans la
@@ -216,6 +222,7 @@ const CELLULE = "h-14 border-t px-3 align-middle";
 export function VueLigneCategorie({
   categorie,
   etatCategorie,
+  autresActions,
   etat,
   envoiEnCours = false,
   refChamp,
@@ -228,6 +235,12 @@ export function VueLigneCategorie({
   categorie: CategorieLigne;
   /** Contenu de la colonne État : « Active » ou le badge *Désactivée*. */
   etatCategorie: ReactNode;
+  /**
+   * Actions qui suivent « Renommer » en lecture (story 4.2) : « Désactiver »
+   * ou « Réactiver », puis « Supprimer » si la catégorie n'a aucune demande.
+   * Cachées pendant le renommage.
+   */
+  autresActions?: ReactNode;
   etat: EtatRenommage;
   envoiEnCours?: boolean;
   /** Le champ, sélectionné à l'ouverture et après un refus. */
@@ -344,6 +357,16 @@ export function VueLigneCategorie({
               {MESSAGES_CATEGORIES.renommer}
             </Button>
           )}
+          {/* Toujours montées (cachées pendant le renommage) : un envoi en
+              cours garde son verrou et son indicateur (AD-20). */}
+          <div
+            key="autres"
+            data-slot="autres-actions"
+            hidden={etat.edition || undefined}
+            className={etat.edition ? undefined : "contents"}
+          >
+            {autresActions}
+          </div>
         </div>
       </td>
     </tr>
@@ -411,6 +434,12 @@ export function LigneCategorie({ categorie, etatCategorie }: { categorie: Catego
     <VueLigneCategorie
       categorie={categorie}
       etatCategorie={etatCategorie}
+      autresActions={
+        <>
+          <EtatCategorie key="etat" categorie={categorie} />
+          <SupprimerCategorie key="supprimer" categorie={categorie} />
+        </>
+      }
       etat={etat}
       envoiEnCours={envoiEnCours}
       refChamp={refChamp}

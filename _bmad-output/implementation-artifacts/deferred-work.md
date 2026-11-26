@@ -125,3 +125,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-ajouter-renommer-categories.md`
   summary: Tester en vrai les gestes de l'écran A2 (Échap, « Annuler » bloqué pendant l'envoi, sélection du champ, toast « Catégorie renommée »), au lieu de lire le code source.
   evidence: Pas d'environnement DOM dans vitest (`environment: "node"`) ; le branchement des composants avec état n'est vérifié que par des expressions régulières sur le source (même usage qu'en A1, `modifier-compte-ecran.test.tsx`).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-desactiver-reactiver-supprimer-categorie.md`
+  summary: Les règles de `modifier_categorie` côté administrateur (NV503 dernière catégorie active, NV504 catégorie utilisée, NV501 à la réactivation, deux administrateurs en même temps) ne sont jamais exécutées sur une vraie base par un test automatique.
+  evidence: Les tests lisent le texte de la migration et une simulation en mémoire ; l'e2e n'a qu'un compte collaborateur (`tests/e2e/environnement.ts`) et il n'y a pas de Postgres local. Même report qu'en 3.3, 3.5, 4.1 et 4.4.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-desactiver-reactiver-supprimer-categorie.md`
+  summary: La sélection rendue au bouton « Désactiver »/« Réactiver » et le câblage de la fenêtre « Supprimer » (avec état) ne sont exécutés par aucun test.
+  evidence: vitest tourne sans DOM (`environment: "node"`), sans jsdom ni testing-library ; seules les fonctions pures sont essayées, comme pour A1 et la 4.1.

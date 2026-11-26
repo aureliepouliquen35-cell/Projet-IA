@@ -30,6 +30,8 @@ import { FORME_IDENTIFIANT } from "@/shared/schemas/depot";
 // - Elle passe par la fonction SQL `lire_demande` avec la session de la
 //   personne (rôle `authenticated`) : aucune table n'est lisible
 //   directement (AD-9). La réponse est contrôlée (Zod) avant d'être affichée.
+//   Depuis la story 4.2, elle dit aussi si la catégorie est encore active
+//   (`categorie_active`, RM-11).
 // - `null` : aucune demande ne porte cette référence (page « demande
 //   introuvable »).
 // - Une panne (base injoignable, refus, réponse inattendue) est **levée** :
@@ -79,6 +81,8 @@ export type DetailDemande = {
   description: string;
   /** Nom de la catégorie. */
   categorie: string;
+  /** Faux : catégorie désactivée depuis (RM-11) ; I4 affiche « Autre (désactivée) ». */
+  categorieActive: boolean;
   canal: Canal;
   statut: Statut;
   /** Date de dépôt, au format ISO (UTC). */
@@ -101,6 +105,7 @@ const schemaDetail = z.object({
   objet: z.string(),
   description: z.string(),
   categorie: z.string(),
+  categorie_active: z.boolean(),
   canal: z.enum(CANAUX),
   statut: z.enum(STATUTS),
   date_depot: schemaDate,
@@ -194,6 +199,7 @@ export const lireDemande = cache(async (valeur: string): Promise<DetailDemande |
     objet: demande.objet,
     description: demande.description,
     categorie: demande.categorie,
+    categorieActive: demande.categorie_active,
     canal: demande.canal,
     statut: demande.statut,
     dateDepot: enIso(demande.date_depot),

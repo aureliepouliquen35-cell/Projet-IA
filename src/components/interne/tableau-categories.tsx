@@ -16,10 +16,12 @@ import { MESSAGES_CATEGORIES } from "@/shared/messages";
 // en toutes lettres (la couleur n'est jamais la seule information).
 //
 // Colonne « Actions » : « Renommer » (`renommer-categorie.tsx`, qui rend
-// chaque ligne). « Désactiver », « Réactiver » et « Supprimer » viendront
-// avec la story 4.2. Le champ « Nouvelle catégorie » est au-dessus
+// chaque ligne), puis « Désactiver » ou « Réactiver » (`etat-categorie.tsx`,
+// d'un clic) et « Supprimer », seulement pour une catégorie sans aucune
+// demande (`supprimer-categorie.tsx`, avec fenêtre de confirmation ; story
+// 4.2). Le champ « Nouvelle catégorie » est au-dessus
 // (`ajouter-categorie.tsx`). Pas d'état vide : il reste toujours au moins
-// une catégorie active.
+// une catégorie active (la base le garantit, AD-10).
 
 const EN_TETE = "px-3 py-2.5 text-left text-caption font-semibold tracking-wide text-text-muted uppercase";
 

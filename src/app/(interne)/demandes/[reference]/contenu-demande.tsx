@@ -16,7 +16,7 @@ import { adresseListe, lireFiltres, lireRecherche } from "@/shared/adresse-liste
 import { lienTelephone } from "@/shared/contacts";
 import { formaterDateHeure } from "@/shared/dates";
 import { LIBELLES_CANAUX } from "@/shared/libelles";
-import { MESSAGES_DETAIL, MESSAGES_STATUT } from "@/shared/messages";
+import { MESSAGES_DETAIL, MESSAGES_LISTE, MESSAGES_STATUT } from "@/shared/messages";
 
 import type { ParametresAdresse } from "../contenu-demandes";
 
@@ -194,7 +194,10 @@ export async function ContenuDemande({
             </Bloc>
             <Bloc icone={<Info />} titre={MESSAGES_DETAIL.blocInformations}>
               <dl className={LISTE_CHAMPS}>
-                <Champ libelle={MESSAGES_DETAIL.categorie}>{demande.categorie}</Champ>
+                <Champ libelle={MESSAGES_DETAIL.categorie}>
+                  {/* Catégorie désactivée depuis : la demande la garde, avec la mention (RM-11). */}
+                  {demande.categorieActive ? demande.categorie : `${demande.categorie} ${MESSAGES_LISTE.desactivee}`}
+                </Champ>
                 <Champ libelle={MESSAGES_DETAIL.canal}>{LIBELLES_CANAUX[demande.canal]}</Champ>
                 <Champ libelle={MESSAGES_DETAIL.deposeeLe}>
                   <time dateTime={demande.dateDepot}>{formaterDateHeure(new Date(demande.dateDepot))}</time>

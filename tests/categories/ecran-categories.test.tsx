@@ -29,6 +29,8 @@ vi.mock("next/navigation", async (original) => ({
 }));
 vi.mock("@/server/actions/ajouter-categorie", () => ({ actionAjouterCategorie: vi.fn() }));
 vi.mock("@/server/actions/renommer-categorie", () => ({ actionRenommerCategorie: vi.fn() }));
+vi.mock("@/server/actions/changer-etat-categorie", () => ({ actionChangerEtatCategorie: vi.fn() }));
+vi.mock("@/server/actions/supprimer-categorie", () => ({ actionSupprimerCategorie: vi.fn() }));
 
 import { ContenuCategories } from "@/app/(interne)/admin/categories/contenu-categories";
 import PageCategories, { metadata } from "@/app/(interne)/admin/categories/page";
@@ -168,11 +170,15 @@ describe("écran A2 « Catégories »", () => {
     lignes.forEach((ligne, index) => {
       const { nom } = CATEGORIES_DEPART[index];
       expect(ligne).toMatch(/^<th scope="row"/);
-      expect(texteDe(ligne).replace(/&#x27;|'/g, "'")).toBe(`${nom} Active ${parCategorie.get(nom) ?? 0} Renommer`);
+      const nombre = parCategorie.get(nom) ?? 0;
+      // Story 4.2 : « Désactiver », puis « Supprimer » seulement sans demande.
+      const actions = nombre === 0 ? "Renommer Désactiver Supprimer" : "Renommer Désactiver";
+      expect(texteDe(ligne).replace(/&#x27;|'/g, "'")).toBe(`${nom} Active ${nombre} ${actions}`);
       expect(ligne).toContain(`aria-label="Renommer la catégorie ${nom.replace(/'/g, "&#x27;")}"`);
     });
-    // Story 4.2 : pas encore de désactivation ni de suppression.
-    expect(texteDe(html)).not.toMatch(/Désactiver|Réactiver|Supprimer/);
+    // Au moins une ligne de chaque sorte dans cet essai.
+    expect(new Set(CATEGORIES_DEPART.map((c) => (parCategorie.get(c.nom) ?? 0) === 0))).toEqual(new Set([true, false]));
+    expect(texteDe(html)).not.toMatch(/Réactiver/);
   });
 
   it("catégorie désactivée (story 4.2) : badge gris *Désactivée*, écrit en toutes lettres", async () => {

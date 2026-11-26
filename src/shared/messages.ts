@@ -357,6 +357,42 @@ export const MESSAGES_CATEGORIES = {
   nomDejaPris: "Une catégorie active porte déjà ce nom.",
   /** Panne (et tout refus imprévu) : rien n'a été écrit, la saisie est gardée. */
   enregistrementImpossible: "La catégorie n'a pas pu être enregistrée. Réessayez.",
+  /**
+   * « Désactiver » ou « Réactiver » de la colonne Actions (story 4.2) : d'un
+   * seul clic, sans fenêtre, avec un toast. Textes absents de l'UX
+   * (indicateurs, toasts, panne) validés par Aurel le 26 nov. 2026.
+   */
+  desactiver: "Désactiver",
+  /** Nom du bouton pour les lecteurs d'écran : « Désactiver la catégorie Autre ». */
+  desactiverNom: (nom: string) => `Désactiver la catégorie ${nom}`,
+  desactivationEnCours: "Désactivation…",
+  /** Toast de succès (5 s). */
+  categorieDesactivee: "Catégorie désactivée",
+  reactiver: "Réactiver",
+  /** Nom du bouton pour les lecteurs d'écran : « Réactiver la catégorie Autre ». */
+  reactiverNom: (nom: string) => `Réactiver la catégorie ${nom}`,
+  reactivationEnCours: "Réactivation…",
+  /** Toast de succès (5 s). */
+  categorieReactivee: "Catégorie réactivée",
+  /**
+   * « Supprimer », proposé seulement pour une catégorie sans aucune demande :
+   * il ouvre la fenêtre de confirmation (bouton danger « Supprimer »).
+   */
+  supprimer: "Supprimer",
+  /** Nom du bouton pour les lecteurs d'écran : « Supprimer la catégorie Facturation ». */
+  supprimerNom: (nom: string) => `Supprimer la catégorie ${nom}`,
+  /** Titre de la fenêtre : « Supprimer la catégorie Facturation ? ». */
+  fenetreSupprimerTitre: (nom: string) => `Supprimer la catégorie ${nom} ?`,
+  fenetreSupprimerTexte: "Elle n'a jamais été utilisée. Cette action est irréversible.",
+  suppressionEnCours: "Suppression…",
+  /** Toast de succès (5 s). */
+  categorieSupprimee: "Catégorie supprimée",
+  /** Réponse `CONFLIT` (NV503) : texte exact de l'UX. */
+  derniereActive: "Impossible : au moins une catégorie doit rester active, sinon le formulaire serait inutilisable.",
+  /** Réponse `CONFLIT` (NV504) : texte exact de l'UX. */
+  categorieUtilisee: "Impossible de supprimer une catégorie utilisée par des demandes. Vous pouvez la désactiver.",
+  /** Panne d'une désactivation, d'une réactivation ou d'une suppression : rien n'a été écrit. */
+  modificationImpossible: "La catégorie n'a pas pu être modifiée. Réessayez.",
 } as const;
 
 /**
@@ -428,7 +464,10 @@ export const MESSAGES_LISTE = {
   filtreATraiter: "À traiter",
   tous: "Tous",
   toutes: "Toutes",
-  /** Après le nom d'une catégorie désactivée, dans le filtre Catégorie. */
+  /**
+   * Après le nom d'une catégorie désactivée, dans le filtre Catégorie et sur
+   * le détail I4 (RM-11, story 4.2).
+   */
   desactivee: "(désactivée)",
 } as const;
 

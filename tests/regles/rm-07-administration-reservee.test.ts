@@ -41,10 +41,12 @@ import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
 import { SectionAdministration } from "@/components/interne/section-administration";
 import { createClient } from "@/lib/supabase/server";
 import { actionAjouterCategorie } from "@/server/actions/ajouter-categorie";
+import { actionChangerEtatCategorie } from "@/server/actions/changer-etat-categorie";
 import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
 import { actionCreerCompte } from "@/server/actions/creer-compte";
 import { actionModifierCompte } from "@/server/actions/modifier-compte";
 import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
+import { actionSupprimerCategorie } from "@/server/actions/supprimer-categorie";
 import { actionSupprimerDemande } from "@/server/actions/supprimer-demande";
 import { exigerAdministrateur } from "@/server/garde";
 import { actionRenommerCategorie } from "@/server/actions/renommer-categorie";
@@ -74,6 +76,8 @@ const ACTIONS_ADMINISTRATION = [
   "supprimer-demande.ts",
   "ajouter-categorie.ts",
   "renommer-categorie.ts",
+  "changer-etat-categorie.ts",
+  "supprimer-categorie.ts",
 ];
 
 function fichiers(dossier: string): string[] {
@@ -280,6 +284,8 @@ describe("RM-7 : un administrateur rétrogradé perd l'administration à sa proc
     ["supprimer une demande", () => actionSupprimerDemande({ reference: "NOVA-2026-0001" })],
     ["ajouter une catégorie", () => actionAjouterCategorie({ nom: "Facturation" })],
     ["renommer une catégorie", () => actionRenommerCategorie({ categorieId: CATEGORIES_DEPART[4].id, nom: "Divers" })],
+    ["désactiver une catégorie", () => actionChangerEtatCategorie({ categorieId: CATEGORIES_DEPART[4].id, active: false })],
+    ["supprimer une catégorie", () => actionSupprimerCategorie({ categorieId: CATEGORIES_DEPART[4].id })],
   ])("%s : « Accès refusé. », rien n'est appelé, et la page est recalculée (S1, menu sans Administration)", async (_, agir) => {
     await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
@@ -361,10 +367,12 @@ describe("RM-7 : les catégories (écran A2) sont réservées aux administrateur
   it.each([
     ["ajouter", () => actionAjouterCategorie({ nom: "Facturation" })],
     ["renommer", () => actionRenommerCategorie({ categorieId: CATEGORIES_DEPART[4].id, nom: "Divers" })],
+    ["désactiver (story 4.2)", () => actionChangerEtatCategorie({ categorieId: CATEGORIES_DEPART[4].id, active: false })],
+    ["supprimer (story 4.2)", () => actionSupprimerCategorie({ categorieId: CATEGORIES_DEPART[4].id })],
   ])("Server Function « %s » appelée directement : « Accès refusé. », aucun appel, rien n'est écrit", async (_, agir) => {
     await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.rpcSession).not.toHaveBeenCalled();
-    expect(simulation.categories.map((c) => c.nom)).toEqual(CATEGORIES_DEPART.map((c) => c.nom));
+    expect(simulation.categories.map((c) => [c.nom, c.active])).toEqual(CATEGORIES_DEPART.map((c) => [c.nom, true]));
   });
 
   // Simulation seulement : le refus de la vraie base est vérifié sur dev par
@@ -373,12 +381,14 @@ describe("RM-7 : les catégories (écran A2) sont réservées aux administrateur
     ["lister_categories_administration", {}],
     ["ajouter_categorie", { p_nom: "Facturation" }],
     ["modifier_categorie", { p_categorie: CATEGORIES_DEPART[4].id, p_nom: "Divers" }],
+    ["modifier_categorie", { p_categorie: CATEGORIES_DEPART[4].id, p_active: false }],
+    ["modifier_categorie", { p_categorie: CATEGORIES_DEPART[4].id, p_supprimer: true }],
   ])("règle simulée de %s, appelée directement avec la session du collaborateur : NV202, rien n'est écrit", async (nom, parametres) => {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc(nom, parametres).abortSignal(AbortSignal.timeout(1000));
     expect(data).toBeNull();
     expect(error).toMatchObject({ code: "NV202" });
-    expect(simulation.categories.map((c) => c.nom)).toEqual(CATEGORIES_DEPART.map((c) => c.nom));
+    expect(simulation.categories.map((c) => [c.nom, c.active])).toEqual(CATEGORIES_DEPART.map((c) => [c.nom, true]));
   });
 
   it("la lecture des catégories commence par exigerAdministrateur", () => {
@@ -406,6 +416,24 @@ describe("RM-7 : les catégories (écran A2) sont réservées aux administrateur
       }
       expect(MIGRATION_CATEGORIES).toContain(`grant execute on function ${signature} to authenticated;`);
     }
+  });
+
+  it("story 4.2 : la nouvelle modifier_categorie commence par exiger_administrateur et n'est exécutable que par authenticated", () => {
+    const migration = readFileSync(
+      join(racine, "supabase", "migrations", "20261127090000_desactiver_supprimer_categorie.sql"),
+      "utf8",
+    )
+      .replace(/--.*$/gm, "")
+      .toLowerCase();
+    const corps =
+      migration.match(/create function public\.modifier_categorie\([^)]*\)[\s\S]*?as \$\$([\s\S]*?)\$\$;/)?.[1] ?? "";
+    expect(corps).toMatch(/\bbegin\s+perform public\.exiger_administrateur\(\);/);
+    expect(migration).toMatch(/security definer\s+set search_path = ''/);
+    const signature = "public.modifier_categorie(uuid, text, boolean, boolean)";
+    for (const role of ["public", "anon", "service_role"]) {
+      expect(migration).toContain(`revoke execute on function ${signature} from ${role};`);
+    }
+    expect(migration).toContain(`grant execute on function ${signature} to authenticated;`);
   });
 
   it("l'application n'écrit jamais directement dans categories", () => {

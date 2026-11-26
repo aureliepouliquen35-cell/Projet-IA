@@ -75,6 +75,7 @@ describe("lireDemande", () => {
       objet: "Accès impossible à l'outil de facturation",
       description: "Depuis ce matin, l'outil affiche « session refusée ».\nJ'ai redémarré le poste.",
       categorie: "Problème technique",
+      categorieActive: true,
       canal: "formulaire",
       statut: "nouvelle",
       dateDepot: "2026-11-08T07:47:00.000Z",
@@ -183,6 +184,9 @@ describe("panne (AD-12, AD-13) : levée, sans donnée du demandeur", () => {
       INATTENDUE,
     ],
     ["création avec des statuts", avecEvenement({ ancien_statut: "nouvelle", nouveau_statut: "en_cours" }), INATTENDUE],
+    // Story 4.2 : `categorie_active` est obligatoire (migration 4.2).
+    ["sans categorie_active", { data: { ...detailSimule(CLAIRE), categorie_active: undefined }, error: null }, INATTENDUE],
+    ["categorie_active qui n'est pas un booléen", { data: { ...detailSimule(CLAIRE), categorie_active: "non" }, error: null }, INATTENDUE],
   ])("%s : erreur levée, message sans donnée du demandeur", async (_, retour, message) => {
     simulation.pannesRpc.lire_demande = retour;
     const erreur = await erreurDe(lireDemande("NOVA-2026-0042"));

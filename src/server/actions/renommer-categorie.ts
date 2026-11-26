@@ -26,7 +26,10 @@ import { validerRenommageCategorie } from "@/shared/schemas/categorie";
 //   session de l'administrateur (rôle `authenticated`), jamais avec la clé
 //   secrète (AD-9). Elle refait le contrôle du rôle (NV202), verrouille la
 //   catégorie et garantit le nom unique parmi les catégories actives
-//   (NV501). Même nom qu'avant : rien n'est écrit (`change` faux).
+//   (NV501). Même nom qu'avant : rien n'est écrit (`change` faux). Depuis la
+//   story 4.2, la fonction sait aussi désactiver, réactiver et supprimer :
+//   le renommage ne lui donne que `p_categorie` et `p_nom`, les autres
+//   paramètres gardent leur valeur par défaut (aucune autre opération).
 // - Réussite, même sans changement : `refresh()` recalcule la liste, qui
 //   montre le nom réel en place. Le nouveau nom s'affiche aussi sur le
 //   détail I4, le filtre de I3 et le formulaire public, qui relisent le nom

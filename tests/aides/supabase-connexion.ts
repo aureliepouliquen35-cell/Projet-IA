@@ -95,6 +95,10 @@ import { vi } from "vitest";
 //   demandes de chaque catégorie ; une catégorie ajoutée est active, en
 //   dernière position. Un renommage change aussi le nom de la catégorie sur
 //   les demandes qui l'utilisent (la vraie base le relit par jointure).
+//   Story 4.2 : `modifier_categorie` désactive, réactive ou supprime aussi
+//   (une seule opération par appel) ; dernière catégorie active : `NV503` ;
+//   suppression d'une catégorie utilisée : `NV504` ; réactivation d'un nom
+//   déjà pris : `NV501`. `lire_demande` dit si la catégorie est active.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -179,6 +183,11 @@ export type DemandeSimulee = {
   evenements?: EvenementSimule[];
   /** Date de clôture (story 1.11) ; par défaut `null`. */
   date_cloture?: string | null;
+  /**
+   * Catégorie encore active (story 4.2), renvoyée par `detailSimule` (vrai
+   * par défaut). La simulation de `lire_demande` la relit dans les catégories.
+   */
+  categorie_active?: boolean;
   /** Numéro d'envoi (story 1.4, 2.3) ; par défaut `null`. */
   numero_envoi?: string | null;
 };
@@ -223,6 +232,7 @@ export function detailSimule(d: DemandeSimulee) {
     objet: d.objet,
     description: d.description ?? `Description : ${d.objet}.`,
     categorie: d.categorie,
+    categorie_active: d.categorie_active ?? true,
     canal: d.canal ?? "formulaire",
     statut: d.statut,
     date_depot: d.date_depot,
@@ -630,28 +640,64 @@ export function creerSimulationConnexion() {
     return { data: { id, nom: nomCategorie }, error: null };
   }
 
-  /** `modifier_categorie` de la migration 4.1 (renommage). */
+  /**
+   * `modifier_categorie` de la migration 4.2 : une seule opération par appel
+   * (`p_nom`, `p_active` ou `p_supprimer`). Renommage (NV501, NV502) ;
+   * désactivation et suppression refusées si aucune catégorie active ne
+   * resterait (NV503) ; suppression refusée pour une catégorie utilisée
+   * (NV504) ; réactivation refusée si une active porte déjà le nom (NV501).
+   */
   function modifierCategorie(parametres: Record<string, unknown>): RetourRpc {
     if (!administrateur()) return REFUS_ADMINISTRATEUR;
     const nomCategorie = btrim(parametres.p_nom);
-    if (typeof parametres.p_categorie !== "string" || nomCategorie === null) {
+    const active = typeof parametres.p_active === "boolean" ? parametres.p_active : null;
+    const supprimer = parametres.p_supprimer === true;
+    const operations = Number(nomCategorie !== null) + Number(active !== null) + Number(supprimer);
+    if (typeof parametres.p_categorie !== "string" || operations !== 1) {
       return { data: null, error: { code: "22004", message: "paramètre absent" } };
     }
     const categorie = categories.find((c) => c.id === String(parametres.p_categorie).toLowerCase());
     if (!categorie) return { data: null, error: { code: "NV502", message: "catégorie introuvable" } };
-    if (nomCategorie === categorie.nom) {
-      return { data: { id: categorie.id, nom: categorie.nom, change: false }, error: null };
+    const reponse = (change: boolean, supprimee = false) => ({
+      data: { id: categorie.id, nom: categorie.nom, active: categorie.active, change, supprimee },
+      error: null,
+    });
+    const derniereActive = () => categorie.active && categories.filter((c) => c.active).length <= 1;
+    const REFUS_DERNIERE: RetourRpc = {
+      data: null,
+      error: { code: "NV503", message: "Impossible : au moins une catégorie doit rester active." },
+    };
+    const PRIS: RetourRpc = { data: null, error: { code: "NV501", message: "Une catégorie active porte déjà ce nom." } };
+
+    if (nomCategorie !== null) {
+      if (nomCategorie === categorie.nom) return reponse(false);
+      if (nomCategorieRefuse(nomCategorie)) return { data: null, error: { code: "23514", message: "contrainte" } };
+      if (categorie.active && nomCategoriePris(nomCategorie, categorie.id)) return PRIS;
+      for (const d of demandes.filter((d) => categorieDe(d) === categorie.id)) {
+        d.categorie_id = categorie.id;
+        d.categorie = nomCategorie;
+      }
+      categorie.nom = nomCategorie;
+      return reponse(true);
     }
-    if (nomCategorieRefuse(nomCategorie)) return { data: null, error: { code: "23514", message: "contrainte" } };
-    if (categorie.active && nomCategoriePris(nomCategorie, categorie.id)) {
-      return { data: null, error: { code: "NV501", message: "Une catégorie active porte déjà ce nom." } };
+
+    if (active !== null) {
+      if (active === categorie.active) return reponse(false);
+      if (!active && derniereActive()) return REFUS_DERNIERE;
+      if (active && nomCategoriePris(categorie.nom, categorie.id)) return PRIS;
+      // Les demandes gardent leur catégorie : l'identifiant est fixé avant que le nom ne soit partagé.
+      for (const d of demandes.filter((d) => categorieDe(d) === categorie.id)) d.categorie_id = categorie.id;
+      categorie.active = active;
+      return reponse(true);
     }
-    for (const d of demandes.filter((d) => categorieDe(d) === categorie.id)) {
-      d.categorie_id = categorie.id;
-      d.categorie = nomCategorie;
+
+    if (derniereActive()) return REFUS_DERNIERE;
+    if (demandes.some((d) => categorieDe(d) === categorie.id)) {
+      return { data: null, error: { code: "NV504", message: "Catégorie utilisée par des demandes." } };
     }
-    categorie.nom = nomCategorie;
-    return { data: { id: categorie.id, nom: nomCategorie, change: true }, error: null };
+    const retour = reponse(true, true);
+    categories.splice(categories.indexOf(categorie), 1);
+    return retour;
   }
 
   /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
@@ -685,7 +731,9 @@ export function creerSimulationConnexion() {
       if (nom === "lire_demande") {
         const reference = String(parametres.p_reference ?? "").toUpperCase();
         const demande = demandes.find((d) => d.reference === reference);
-        return { data: demande ? detailSimule(demande) : null, error: null };
+        if (!demande) return { data: null, error: null };
+        const categorie = categories.find((c) => c.id === categorieDe(demande));
+        return { data: detailSimule({ ...demande, categorie_active: categorie?.active ?? true }), error: null };
       }
       if (nom === "changer_statut") return changerStatut(parametres);
       if (nom === "saisir_demande") return saisirDemande(parametres);

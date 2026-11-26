@@ -135,6 +135,20 @@ describe("demande existante (NOVA-2026-0042)", () => {
     expect(informations).toContain('<time dateTime="2026-11-08T07:47:00.000Z">');
   });
 
+  it("catégorie désactivée depuis (story 4.2, RM-11) : « Problème technique (désactivée) »", async () => {
+    simulation.categories[1].active = false;
+    const informations = bloc(await ecran(), "Informations");
+    expect(texteDe(informations)).toContain("Catégorie Problème technique (désactivée) Canal Formulaire");
+  });
+
+  it("la mention n'est que sur le détail : le tableau de I3 (lu dans la base simulée) garde le nom seul", async () => {
+    simulation.categories[1].active = false;
+    const html = renderToStaticMarkup(await ContenuDemandes({ searchParams: Promise.resolve({}) }));
+    const tableau = html.match(/<table data-slot="tableau-demandes"[\s\S]*?<\/table>/)?.[0] ?? "";
+    expect(texteDe(tableau)).toContain("Problème technique");
+    expect(tableau).not.toContain("(désactivée)");
+  });
+
   it.each([
     ["telephone", "Téléphone"],
     ["email", "Email"],

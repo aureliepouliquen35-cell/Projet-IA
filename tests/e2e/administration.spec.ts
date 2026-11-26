@@ -30,7 +30,9 @@ import { identifiantsE2e } from "./environnement";
 // `/admin/categories`, le collaborateur voit S1, sans aucune catégorie ni
 // champ d'ajout, et les vraies fonctions SQL `lister_categories_administration`,
 // `ajouter_categorie` et `modifier_categorie` refusent son appel direct
-// (NV202) : aucune catégorie n'est jamais créée ni renommée.
+// (NV202) : aucune catégorie n'est jamais créée ni renommée. Story 4.2 :
+// `modifier_categorie` refuse aussi la désactivation et la suppression
+// (demande la migration `20261127090000_desactiver_supprimer_categorie.sql`).
 //
 // Demande la migration `20261124160000_comptes_administration.sql` sur dev ;
 // les tests des catégories demandent aussi
@@ -298,6 +300,22 @@ test("collaborateur : les vraies fonctions SQL des catégories refusent un appel
     });
     expect(modifier.error?.code ?? null).toBe("NV202");
     expect(modifier.data).toBeNull();
+
+    // Story 4.2 : désactiver et supprimer, par la nouvelle signature (un
+    // PGRST202 voudrait dire que la migration 20261127090000 manque sur dev).
+    const desactiver = await supabase.rpc("modifier_categorie", {
+      p_categorie: "00000000-0000-4000-8000-000000000000",
+      p_active: false,
+    });
+    expect(desactiver.error?.code ?? null).toBe("NV202");
+    expect(desactiver.data).toBeNull();
+
+    const supprimer = await supabase.rpc("modifier_categorie", {
+      p_categorie: "00000000-0000-4000-8000-000000000000",
+      p_supprimer: true,
+    });
+    expect(supprimer.error?.code ?? null).toBe("NV202");
+    expect(supprimer.data).toBeNull();
   } finally {
     await supabase.auth.signOut({ scope: "local" });
   }

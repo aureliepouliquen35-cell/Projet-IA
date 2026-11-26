@@ -79,6 +79,11 @@ import { vi } from "vitest";
 //   « doit changer son mot de passe » et mot de passe temporaire remplacé
 //   (`temporaires`), `actif` intact. `updateUserById` avec `password`
 //   change le mot de passe du compte Auth (`comptes`).
+// - Suppression d'une demande (story 4.4) : `supprimer_demande` par le
+//   client de session, avec les règles de la migration : refus `NV202` sauf
+//   pour l'administrateur actif, au mot de passe choisi, de la session ;
+//   référence mise en majuscules ; `introuvable`, ou `supprimee` et la
+//   demande (avec ses événements) retirée de `demandes`.
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -562,6 +567,20 @@ export function creerSimulationConnexion() {
     return { data: lignes, error: null };
   }
 
+  /**
+   * `supprimer_demande` de la migration 4.4 : refus NV202 sauf pour un
+   * administrateur ; sinon la demande (référence mise en majuscules) est
+   * retirée de `demandes`, avec ses événements, ou `introuvable`.
+   */
+  function supprimerDemande(parametres: Record<string, unknown>): RetourRpc {
+    if (!administrateur()) return { data: null, error: { code: "NV202", message: "Accès refusé" } };
+    const reference = String(parametres.p_reference ?? "").toUpperCase();
+    const position = demandes.findIndex((d) => d.reference === reference);
+    if (position === -1) return { data: { resultat: "introuvable", reference }, error: null };
+    demandes.splice(position, 1);
+    return { data: { resultat: "supprimee", reference }, error: null };
+  }
+
   /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
   const rpcSession = vi.fn((nom: string, parametres: Record<string, unknown> = {}) => ({
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
@@ -569,6 +588,7 @@ export function creerSimulationConnexion() {
       if (pannesRpc[nom]) return pannesRpc[nom];
       // Appelant vérifié par `exiger_administrateur` (NV202), pas NV201.
       if (nom === "lister_comptes") return listerComptes();
+      if (nom === "supprimer_demande") return supprimerDemande(parametres);
       if (
         ![
           "compter_a_traiter",

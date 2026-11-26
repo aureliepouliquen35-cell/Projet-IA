@@ -503,6 +503,30 @@ export function messageModifieePar(nom: string, heure: string): string {
 }
 
 /**
+ * Suppression définitive d'une demande, zone administrateur de l'écran I4
+ * (story 4.4 ; EXPERIENCE.md, Flux 5 ; FR-28). Le message d'échec n'est pas
+ * écrit dans l'UX : il reprend le modèle de `MESSAGES_STATUT.echec`.
+ */
+export const MESSAGES_SUPPRESSION = {
+  /** Nom de la zone, pour les lecteurs d'écran. */
+  zone: "Administration de la demande",
+  bouton: "Supprimer la demande…",
+  /** Titre de la fenêtre de confirmation, la référence en chasse fixe. */
+  fenetreTitre: (reference: string) => `Supprimer définitivement la demande ${reference} ?`,
+  fenetreTexte: "La demande et tout son historique seront effacés. Cette action est irréversible.",
+  annuler: "Annuler",
+  confirmer: "Supprimer définitivement",
+  /**
+   * Toast de succès (5 s), affiché sur le détail juste avant le retour à la
+   * liste (`router.replace`) ; il reste visible sur la liste, le Toaster étant
+   * dans le layout racine.
+   */
+  supprimee: (reference: string) => `Demande ${reference} supprimée`,
+  /** Toast d'erreur (jusqu'à fermeture) : la demande reste affichée. */
+  echec: "La demande n'a pas pu être supprimée. Réessayez.",
+} as const;
+
+/**
  * Écran I5 « Nouvelle demande » (EXPERIENCE.md, FR-30, RM-12). Les champs
  * communs avec P1 gardent les messages de `MESSAGES_DEPOT` ; s'y ajoutent le
  * canal et la case remplie par l'utilisateur interne. Les légendes des

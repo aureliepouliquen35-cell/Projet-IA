@@ -26,6 +26,11 @@ vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 // `connection()` n'a de sens que pendant une vraie requête Next.js.
 vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
+// La zone administrateur du détail (story 4.4) lit le routeur.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: () => {}, replace: () => {} }),
+}));
 
 import { ContenuDemande } from "@/app/(interne)/demandes/[reference]/contenu-demande";
 import { ContenuDemandes } from "@/app/(interne)/demandes/contenu-demandes";

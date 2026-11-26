@@ -43,11 +43,12 @@ import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
 import { actionCreerCompte } from "@/server/actions/creer-compte";
 import { actionModifierCompte } from "@/server/actions/modifier-compte";
 import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
+import { actionSupprimerDemande } from "@/server/actions/supprimer-demande";
 import { exigerAdministrateur } from "@/server/garde";
 import { lireComptes } from "@/server/lectures/comptes";
 
 import { texteDe } from "../aides/formulaire-depot";
-import { ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion";
+import { fabriquerDemandes, ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion";
 
 const racine = process.cwd();
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
@@ -60,8 +61,14 @@ const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
 const DEBUT_ACTION_RESERVEE =
   /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) \{\s*refresh\(\);\s*return echec\("ACCES_REFUSE"/;
 
-/** Server Functions de l'écran A1, toutes réservées aux administrateurs. */
-const ACTIONS_ADMINISTRATION = ["creer-compte.ts", "changer-etat-compte.ts", "reinitialiser-mot-de-passe.ts", "modifier-compte.ts"];
+/** Server Functions d'administration (écran A1, suppression d'une demande), toutes réservées aux administrateurs. */
+const ACTIONS_ADMINISTRATION = [
+  "creer-compte.ts",
+  "changer-etat-compte.ts",
+  "reinitialiser-mot-de-passe.ts",
+  "modifier-compte.ts",
+  "supprimer-demande.ts",
+];
 
 function fichiers(dossier: string): string[] {
   return readdirSync(dossier).flatMap((nom) => {
@@ -264,6 +271,7 @@ describe("RM-7 : un administrateur rétrogradé perd l'administration à sa proc
     ["désactiver", () => actionChangerEtatCompte({ compteId: ID_KARIM, actif: false })],
     ["réinitialiser un mot de passe", () => actionReinitialiserMotDePasse({ compteId: ID_KARIM, motDePasseTemporaire: "Kp7mWq2xTz9aBc4d" })],
     ["modifier un compte", () => actionModifierCompte({ compteId: ID_KARIM, nom: "Karim", role: "administrateur" })],
+    ["supprimer une demande", () => actionSupprimerDemande({ reference: "NOVA-2026-0001" })],
   ])("%s : « Accès refusé. », rien n'est appelé, et la page est recalculée (S1, menu sans Administration)", async (_, agir) => {
     await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
@@ -281,5 +289,43 @@ describe("RM-7 : un administrateur rétrogradé perd l'administration à sa proc
       expect(source, fichier).toMatch(/^"use server";/);
       expect(source, fichier).toMatch(DEBUT_ACTION_RESERVEE);
     }
+  });
+});
+
+describe("RM-7 : supprimer une demande est réservé aux administrateurs (story 4.4)", () => {
+  beforeEach(() => {
+    simulation.demandes.push(...fabriquerDemandes(3));
+  });
+
+  it("collaborateur qui appelle la Server Function directement : « Accès refusé. », aucun appel, rien d'effacé", async () => {
+    const reponse = await actionSupprimerDemande({ reference: "NOVA-2026-0003" });
+    expect(reponse).toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+    expect(simulation.demandes).toHaveLength(3);
+  });
+
+  // Simulation seulement : le refus de la vraie base est vérifié sur dev par
+  // `tests/e2e/administration.spec.ts`.
+  it("règle simulée de supprimer_demande, appelée directement avec la session du collaborateur : NV202, rien d'effacé", async () => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .rpc("supprimer_demande", { p_reference: "NOVA-2026-0003" })
+      .abortSignal(AbortSignal.timeout(1000));
+    expect(data).toBeNull();
+    expect(error).toMatchObject({ code: "NV202" });
+    expect(simulation.demandes).toHaveLength(3);
+  });
+
+  it("la fonction SQL commence par exiger_administrateur et n'est exécutable que par authenticated (la session)", () => {
+    const migration = readFileSync(join(racine, "supabase", "migrations", "20261126120000_supprimer_demande.sql"), "utf8")
+      .replace(/--.*$/gm, "")
+      .toLowerCase();
+    expect(migration).toMatch(/\bbegin\s+perform public\.exiger_administrateur\(\);/);
+    expect(migration).toMatch(/security definer\s+set search_path = ''/);
+    const signature = "public.supprimer_demande(text)";
+    for (const role of ["public", "anon", "service_role"]) {
+      expect(migration).toContain(`revoke execute on function ${signature} from ${role};`);
+    }
+    expect(migration).toContain(`grant execute on function ${signature} to authenticated;`);
   });
 });

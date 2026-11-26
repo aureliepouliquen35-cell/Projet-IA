@@ -21,6 +21,11 @@ import { identifiantsE2e } from "./environnement";
 // à la main avec le compte administrateur de dev : aucun identifiant
 // administrateur n'est gardé pour les tests automatiques.
 //
+// Story 4.4 : sur le détail d'une demande, le collaborateur n'a ni zone
+// administrateur, ni « Supprimer la demande… », et la vraie fonction
+// `supprimer_demande` refuse son appel direct (NV202), sur une référence
+// qui n'existe pas : aucune vraie demande n'est jamais supprimée.
+//
 // Demande la migration `20261124160000_comptes_administration.sql` sur dev.
 
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
@@ -187,6 +192,48 @@ test("collaborateur : la vraie fonction SQL reinitialiser_mdp refuse un appel di
       .maybeSingle();
     expect(error).toBeNull();
     expect(profil).toEqual({ actif: true, doit_changer_mdp: false });
+  } finally {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+});
+
+test("collaborateur : aucune zone administrateur sur le détail d'une demande", async ({ page }) => {
+  // Story 4.4 : ni zone administrateur, ni « Supprimer la demande… ». La
+  // première demande de la liste est seulement ouverte, jamais modifiée
+  // (dev en contient toujours : les autres tests en créent).
+  await seConnecter(page);
+  const premiere = page.locator("[data-slot=tableau-demandes] tbody a").first();
+  await expect(premiere).toBeVisible();
+  await premiere.click();
+  await expect(page).toHaveURL(/\/demandes\/NOVA-\d{4}-\d{4,}/);
+  await expect(page.locator("[data-slot=panneau-statut]")).toBeVisible();
+  await expect(page.locator("[data-slot=actions-statut]")).toBeVisible();
+  await expect(page.locator("[data-slot=zone-administrateur]")).toHaveCount(0);
+  await expect(page.locator("[data-slot=supprimer-demande]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Supprimer/ })).toHaveCount(0);
+});
+
+test("collaborateur : la vraie fonction SQL supprimer_demande refuse un appel direct (NV202)", async () => {
+  // Story 4.4 : exécutable par `authenticated`, mais la fonction commence
+  // par `exiger_administrateur`. Appelée sur une référence qui n'existe pas
+  // (numéro 9999 de l'an 1999) : même un refus manquant n'effacerait
+  // aucune vraie demande. Demande la migration
+  // `20261126120000_supprimer_demande.sql` sur dev.
+  const { email, motDePasse } = identifiantsE2e(process.env);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  expect(url, "NEXT_PUBLIC_SUPABASE_URL dans .env.local").not.toBe("");
+  expect(cle, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY dans .env.local").not.toBe("");
+
+  const supabase = createClient(url, cle, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: erreurConnexion } = await supabase.auth.signInWithPassword({ email, password: motDePasse });
+  expect(erreurConnexion?.code ?? null, "connexion du compte de test").toBeNull();
+  try {
+    const { data, error } = await supabase.rpc("supprimer_demande", { p_reference: "NOVA-1999-9999" });
+    expect(error?.code ?? null).toBe("NV202");
+    expect(data).toBeNull();
   } finally {
     await supabase.auth.signOut({ scope: "local" });
   }

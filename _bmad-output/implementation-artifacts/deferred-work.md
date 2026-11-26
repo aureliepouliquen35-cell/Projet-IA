@@ -113,3 +113,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-3-modifier-nom-role-compte.md`
   summary: Écrire les événements de comptes (`role_modifie`, et ceux des stories 3.2, 3.4, 3.5) dans la même transaction que la modification.
   evidence: `journaliser()` est appelé après le retour de la fonction SQL et avale ses erreurs ; un délai dépassé après l'écriture laisse un changement de rôle sans trace et affiche « n'a pas pu être modifié ».
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-4-supprimer-definitivement-demande.md`
+  summary: Écrire `demande_supprimee` dans la même transaction que la suppression (ou signaler l'échec du journal), pour que toute suppression RGPD laisse une trace.
+  evidence: `journaliser()` est appelé après le retour de `supprimer_demande` et avale ses erreurs ; un journal injoignable laisse une suppression sans trace (même modèle que les événements de comptes, report de la 3.3) ; AD-13 impose aujourd'hui `journaliser()`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-4-supprimer-definitivement-demande.md`
+  summary: Exécuter la vraie fonction SQL `supprimer_demande` en administrateur dans un test automatique (demande et événements effacés, `supprimee`, référence en majuscules, `introuvable`).
+  evidence: Les tests lisent le texte SQL et une simulation JavaScript ; seul le refus collaborateur est vérifié sur dev. Pas de Postgres local ni de compte administrateur de test (même report qu'en 3.3 et 3.5).

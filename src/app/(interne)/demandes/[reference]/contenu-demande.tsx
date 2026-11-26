@@ -8,6 +8,7 @@ import { ActionsStatut } from "@/components/interne/actions-statut";
 import { BadgeStatut } from "@/components/interne/badge-statut";
 import { FilAriane } from "@/components/interne/fil-ariane";
 import { HistoriqueDemande } from "@/components/interne/historique-demande";
+import { SupprimerDemande } from "@/components/interne/supprimer-demande";
 import { exigerUtilisateur } from "@/server/garde";
 import { lireDemande, type DetailDemande } from "@/server/lectures/demande";
 import { lirePage } from "@/server/lectures/demandes";
@@ -30,13 +31,17 @@ import type { ParametresAdresse } from "../contenu-demandes";
 //     (email en `mailto:`, téléphone en `tel:`, lien « Voir ses autres
 //     demandes », story 2.4), Informations et Historique ;
 //   - à droite, le panneau « Statut » : le statut actuel et les boutons des
-//     seuls passages permis (`ActionsStatut`, story 1.11).
+//     seuls passages permis (`ActionsStatut`, story 1.11) ; en bas, pour les
+//     seuls administrateurs (rôle relu dans `profils` par
+//     `exigerUtilisateur()`, AD-7), la zone administrateur séparée par un
+//     trait, avec « Supprimer la demande… » (`SupprimerDemande`, story
+//     4.4). Un collaborateur ne la reçoit pas, et la Server Function le
+//     refuse de toute façon (RM-7).
 // En dessous de 1 024 px, une colonne : le panneau vient sous l'en-tête.
 // La date de clôture s'affiche dans « Informations » si la demande est
 // *Traitée*.
 //
-// Ni priorité (FR-19), ni attribution, ni commentaires, ni zone
-// administrateur : stories à venir.
+// Ni priorité (FR-19), ni attribution, ni commentaires : stories à venir.
 
 const CARTE = "rounded-lg border bg-background p-6 shadow-soft";
 const LISTE_CHAMPS = "grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-body-sm";
@@ -132,7 +137,7 @@ export async function ContenuDemande({
   // Lecture à chaque visite, jamais pendant la préparation de la page (voir
   // `ContenuDemandes`).
   await connection();
-  await exigerUtilisateur();
+  const utilisateur = await exigerUtilisateur();
   const [{ reference }, parametres] = await Promise.all([params, searchParams]);
   const retour = adresseListe({
     q: lireRecherche(parametres.q),
@@ -170,6 +175,9 @@ export async function ContenuDemande({
           {/* Même clé après `refresh()` : l'encadré « modifiée par … » reste
               affiché ; une autre demande repart de zéro. */}
           <ActionsStatut key={demande.reference} reference={demande.reference} statut={demande.statut} />
+          {utilisateur.role === "administrateur" ? (
+            <SupprimerDemande key={`suppression-${demande.reference}`} reference={demande.reference} retour={retour} />
+          ) : null}
         </aside>
 
         <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">

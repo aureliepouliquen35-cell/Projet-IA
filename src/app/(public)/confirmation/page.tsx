@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
 import { lireContactsNova } from "@/server/depot";
 import { lireConfirmation } from "@/server/passage";
@@ -29,6 +30,10 @@ export const metadata: Metadata = {
 };
 
 export default async function PageConfirmation() {
+  // Lecture à chaque visite, jamais pendant la préparation de la page : le
+  // déchiffrement du cookie consulte l'heure (`Date.now()`, expiration), ce
+  // que Cache Components interdit avant une vraie requête.
+  await connection();
   const confirmation = await lireConfirmation();
   if (!confirmation) redirect("/");
 

@@ -21,6 +21,7 @@ const simulation = vi.hoisted(() => {
 });
 
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 vi.mock("@/server/actions/se-connecter", () => ({ actionSeConnecter: vi.fn() }));
 
 import { EncadreSessionExpiree, EncadreSessionTerminee, MessageConnexion } from "@/app/connexion/message-connexion";

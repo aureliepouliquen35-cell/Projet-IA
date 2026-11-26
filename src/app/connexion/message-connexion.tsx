@@ -1,4 +1,5 @@
 import { Info } from "lucide-react";
+import { connection } from "next/server";
 
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { lireMessageConnexion } from "@/server/passage";
@@ -13,6 +14,10 @@ import { MESSAGE_SESSION_EXPIREE, MESSAGE_SESSION_TERMINEE } from "@/shared/mess
 // `<Suspense>`, la lecture des cookies est dynamique.
 
 export async function MessageConnexion() {
+  // Lecture à chaque visite, jamais pendant la préparation de la page : le
+  // déchiffrement du cookie consulte l'heure (`Date.now()`, expiration), ce
+  // que Cache Components interdit avant une vraie requête.
+  await connection();
   const message = await lireMessageConnexion();
   if (message === "session_expiree") return <EncadreSessionExpiree />;
   if (message === "session_terminee") return <EncadreSessionTerminee />;

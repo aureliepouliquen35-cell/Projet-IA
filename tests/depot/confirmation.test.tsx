@@ -29,6 +29,7 @@ const simulation = vi.hoisted(() => {
 vi.mock("@/server/passage", () => ({ lireConfirmation: simulation.lireConfirmation }));
 vi.mock("@/server/depot", () => ({ lireContactsNova: simulation.lireContactsNova }));
 vi.mock("next/navigation", () => ({ redirect: simulation.redirect }));
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 
 import PageConfirmation, * as modulePage from "@/app/(public)/confirmation/page";
 

@@ -25,6 +25,9 @@ export const ADRESSE_NOUVELLE_DEMANDE = "/demandes/nouvelle";
  */
 export const ADRESSE_COMPTES = "/admin/comptes";
 
+/** Écran A2 « Catégories » (story 4.1), réservé aux administrateurs (FR-26, RM-7). */
+export const ADRESSE_CATEGORIES = "/admin/categories";
+
 /**
  * Débuts d'adresse des pages internes. Seules ces pages demandent une
  * session : les pages publiques (`/`, `/confirmation`) et les adresses

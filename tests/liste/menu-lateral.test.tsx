@@ -126,6 +126,15 @@ describe("élément actif du menu", () => {
     expect(estActif(valeur, "/demandes")).toBe(attendu);
   });
 
+  it.each([
+    ["/admin/categories", "/admin/categories", true],
+    ["/admin/comptes", "/admin/categories", false],
+    ["/admin/categories", "/admin/comptes", false],
+    ["/admin/categoriesxyz", "/admin/categories", false],
+  ] as const)("Administration (story 4.1) : %s, lien %s → actif : %s", (valeur, adresse, attendu) => {
+    expect(estActif(valeur, adresse)).toBe(attendu);
+  });
+
   it("actif : aria-current=\"page\", fond bleu clair, icône et barre violettes", () => {
     const html = renderToStaticMarkup(
       <LienMenu href="/demandes" icone={<svg />}>

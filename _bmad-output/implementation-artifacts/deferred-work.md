@@ -119,3 +119,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-4-supprimer-definitivement-demande.md`
   summary: Exécuter la vraie fonction SQL `supprimer_demande` en administrateur dans un test automatique (demande et événements effacés, `supprimee`, référence en majuscules, `introuvable`).
   evidence: Les tests lisent le texte SQL et une simulation JavaScript ; seul le refus collaborateur est vérifié sur dev. Pas de Postgres local ni de compte administrateur de test (même report qu'en 3.3 et 3.5).
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-ajouter-renommer-categories.md`
+  summary: Exécuter en administrateur les vraies fonctions `ajouter_categorie`, `modifier_categorie` et `lister_categories_administration` dans un test automatique (NV501, `change` faux, NV502, ordre et nombre de demandes).
+  evidence: Les tests lisent le texte SQL et une simulation JavaScript ; seul le refus collaborateur (NV202) est vérifié sur dev. Un index renommé ferait passer un doublon en « n'a pas pu être enregistrée » sans qu'aucun test échoue. Même manque de compte administrateur de test qu'en 3.3, 3.5 et 4.4.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-ajouter-renommer-categories.md`
+  summary: Tester en vrai les gestes de l'écran A2 (Échap, « Annuler » bloqué pendant l'envoi, sélection du champ, toast « Catégorie renommée »), au lieu de lire le code source.
+  evidence: Pas d'environnement DOM dans vitest (`environment: "node"`) ; le branchement des composants avec état n'est vérifié que par des expressions régulières sur le source (même usage qu'en A1, `modifier-compte-ecran.test.tsx`).

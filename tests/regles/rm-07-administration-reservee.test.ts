@@ -36,19 +36,23 @@ vi.mock("next/navigation", async (original) => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
 
+import { ContenuCategories } from "@/app/(interne)/admin/categories/contenu-categories";
 import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
 import { SectionAdministration } from "@/components/interne/section-administration";
 import { createClient } from "@/lib/supabase/server";
+import { actionAjouterCategorie } from "@/server/actions/ajouter-categorie";
 import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
 import { actionCreerCompte } from "@/server/actions/creer-compte";
 import { actionModifierCompte } from "@/server/actions/modifier-compte";
 import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
 import { actionSupprimerDemande } from "@/server/actions/supprimer-demande";
 import { exigerAdministrateur } from "@/server/garde";
+import { actionRenommerCategorie } from "@/server/actions/renommer-categorie";
+import { lireCategoriesAdministration } from "@/server/lectures/categories";
 import { lireComptes } from "@/server/lectures/comptes";
 
 import { texteDe } from "../aides/formulaire-depot";
-import { fabriquerDemandes, ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion";
+import { CATEGORIES_DEPART, fabriquerDemandes, ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion";
 
 const racine = process.cwd();
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
@@ -61,13 +65,15 @@ const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
 const DEBUT_ACTION_RESERVEE =
   /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) \{\s*refresh\(\);\s*return echec\("ACCES_REFUSE"/;
 
-/** Server Functions d'administration (écran A1, suppression d'une demande), toutes réservées aux administrateurs. */
+/** Server Functions d'administration (écrans A1 et A2, suppression d'une demande), toutes réservées aux administrateurs. */
 const ACTIONS_ADMINISTRATION = [
   "creer-compte.ts",
   "changer-etat-compte.ts",
   "reinitialiser-mot-de-passe.ts",
   "modifier-compte.ts",
   "supprimer-demande.ts",
+  "ajouter-categorie.ts",
+  "renommer-categorie.ts",
 ];
 
 function fichiers(dossier: string): string[] {
@@ -96,10 +102,10 @@ describe("RM-7 : un collaborateur ne voit aucune administration", () => {
     expect(renderToStaticMarkup(await SectionAdministration())).toBe("");
   });
 
-  it("le même menu, pour un administrateur : la section et « Comptes »", async () => {
+  it("le même menu, pour un administrateur : la section, « Comptes » et « Catégories »", async () => {
     simulation.session.id = ID_SOPHIE;
     const section = await SectionAdministration();
-    expect(texteDe(renderToStaticMarkup(section))).toBe("Administration Comptes");
+    expect(texteDe(renderToStaticMarkup(section))).toBe("Administration Comptes Catégories");
   });
 });
 
@@ -272,6 +278,8 @@ describe("RM-7 : un administrateur rétrogradé perd l'administration à sa proc
     ["réinitialiser un mot de passe", () => actionReinitialiserMotDePasse({ compteId: ID_KARIM, motDePasseTemporaire: "Kp7mWq2xTz9aBc4d" })],
     ["modifier un compte", () => actionModifierCompte({ compteId: ID_KARIM, nom: "Karim", role: "administrateur" })],
     ["supprimer une demande", () => actionSupprimerDemande({ reference: "NOVA-2026-0001" })],
+    ["ajouter une catégorie", () => actionAjouterCategorie({ nom: "Facturation" })],
+    ["renommer une catégorie", () => actionRenommerCategorie({ categorieId: CATEGORIES_DEPART[4].id, nom: "Divers" })],
   ])("%s : « Accès refusé. », rien n'est appelé, et la page est recalculée (S1, menu sans Administration)", async (_, agir) => {
     await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
@@ -327,5 +335,86 @@ describe("RM-7 : supprimer une demande est réservé aux administrateurs (story 
       expect(migration).toContain(`revoke execute on function ${signature} from ${role};`);
     }
     expect(migration).toContain(`grant execute on function ${signature} to authenticated;`);
+  });
+});
+
+describe("RM-7 : les catégories (écran A2) sont réservées aux administrateurs (story 4.1)", () => {
+  const MIGRATION_CATEGORIES = readFileSync(
+    join(racine, "supabase", "migrations", "20261126150000_categories_administration.sql"),
+    "utf8",
+  )
+    .replace(/--.*$/gm, "")
+    .toLowerCase();
+
+  it("page « Catégories » tapée par un collaborateur : écran S1 seul, aucune donnée, aucune lecture", async () => {
+    const html = renderToStaticMarkup(await ContenuCategories());
+    expect(texteDe(html)).toBe(`${S1} Retour aux demandes`);
+    expect(html).not.toMatch(/Nouvelle catégorie|tableau-categories|Problème technique/);
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+  });
+
+  it("lecture appelée directement : refusée, sans appel à la base", async () => {
+    await expect(lireCategoriesAdministration()).resolves.toEqual({ ok: false, accesRefuse: true });
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["ajouter", () => actionAjouterCategorie({ nom: "Facturation" })],
+    ["renommer", () => actionRenommerCategorie({ categorieId: CATEGORIES_DEPART[4].id, nom: "Divers" })],
+  ])("Server Function « %s » appelée directement : « Accès refusé. », aucun appel, rien n'est écrit", async (_, agir) => {
+    await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.rpcSession).not.toHaveBeenCalled();
+    expect(simulation.categories.map((c) => c.nom)).toEqual(CATEGORIES_DEPART.map((c) => c.nom));
+  });
+
+  // Simulation seulement : le refus de la vraie base est vérifié sur dev par
+  // `tests/e2e/administration.spec.ts`.
+  it.each([
+    ["lister_categories_administration", {}],
+    ["ajouter_categorie", { p_nom: "Facturation" }],
+    ["modifier_categorie", { p_categorie: CATEGORIES_DEPART[4].id, p_nom: "Divers" }],
+  ])("règle simulée de %s, appelée directement avec la session du collaborateur : NV202, rien n'est écrit", async (nom, parametres) => {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(nom, parametres).abortSignal(AbortSignal.timeout(1000));
+    expect(data).toBeNull();
+    expect(error).toMatchObject({ code: "NV202" });
+    expect(simulation.categories.map((c) => c.nom)).toEqual(CATEGORIES_DEPART.map((c) => c.nom));
+  });
+
+  it("la lecture des catégories commence par exigerAdministrateur", () => {
+    const source = readFileSync(join(racine, "src", "server", "lectures", "categories.ts"), "utf8");
+    expect(source).toMatch(
+      /cache\(async \(\): Promise<LectureCategories> => \{\s*if \(!\(await exigerAdministrateur\(\)\)\) return ACCES_REFUSE;/,
+    );
+    expect(source).not.toContain(".from(");
+    expect(source).toContain('.rpc("lister_categories_administration")');
+  });
+
+  it("chaque fonction SQL commence par exiger_administrateur et n'est exécutable que par authenticated (la session)", () => {
+    for (const [nom, signature] of [
+      ["lister_categories_administration", "public.lister_categories_administration()"],
+      ["ajouter_categorie", "public.ajouter_categorie(text)"],
+      ["modifier_categorie", "public.modifier_categorie(uuid, text)"],
+    ]) {
+      const corps =
+        MIGRATION_CATEGORIES.match(
+          new RegExp(`create function public\\.${nom}\\([^)]*\\)[\\s\\S]*?as \\$\\$([\\s\\S]*?)\\$\\$;`),
+        )?.[1] ?? "";
+      expect(corps, nom).toMatch(/\bbegin\s+perform public\.exiger_administrateur\(\);/);
+      for (const role of ["public", "anon", "service_role"]) {
+        expect(MIGRATION_CATEGORIES).toContain(`revoke execute on function ${signature} from ${role};`);
+      }
+      expect(MIGRATION_CATEGORIES).toContain(`grant execute on function ${signature} to authenticated;`);
+    }
+  });
+
+  it("l'application n'écrit jamais directement dans categories", () => {
+    const code = fichiers(join(racine, "src")).filter((f) => /\.(ts|tsx)$/.test(f));
+    for (const fichier of code) {
+      const source = readFileSync(fichier, "utf8");
+      expect(source, relative(racine, fichier)).not.toMatch(
+        /\.from\(\s*["'`]categories["'`]\s*\)\s*\.(insert|update|upsert|delete)\(/,
+      );
+    }
   });
 });

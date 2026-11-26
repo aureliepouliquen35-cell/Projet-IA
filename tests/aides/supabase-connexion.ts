@@ -84,6 +84,17 @@ import { vi } from "vitest";
 //   pour l'administrateur actif, au mot de passe choisi, de la session ;
 //   référence mise en majuscules ; `introuvable`, ou `supprimee` et la
 //   demande (avec ses événements) retirée de `demandes`.
+// - Catégories de l'écran A2 (story 4.1) : `lister_categories_administration`,
+//   `ajouter_categorie` et `modifier_categorie` par le client de session,
+//   avec les règles de la migration : refus `NV202` sauf pour
+//   l'administrateur actif, au mot de passe choisi, de la session ; nom aux
+//   espaces de bord retirés ; vide ou de plus de 50 caractères : `23514` ;
+//   nom déjà porté par une autre catégorie active, sans tenir compte des
+//   majuscules : `NV501` ; catégorie inconnue : `NV502` ; même nom :
+//   `change` faux. La liste est dans l'ordre `ordre`, avec le nombre de
+//   demandes de chaque catégorie ; une catégorie ajoutée est active, en
+//   dernière position. Un renommage change aussi le nom de la catégorie sur
+//   les demandes qui l'utilisent (la vraie base le relit par jointure).
 // - Cookies de Next.js (`next/headers`) : `cookies`, avec les cookies reçus
 //   (`cookiesRecus`) et posés (`cookiesPoses`). `SECRET_COOKIES` est fixé à
 //   chaque `reinitialiser`.
@@ -581,6 +592,68 @@ export function creerSimulationConnexion() {
     return { data: { resultat: "supprimee", reference }, error: null };
   }
 
+  const REFUS_ADMINISTRATEUR: RetourRpc = { data: null, error: { code: "NV202", message: "Accès refusé" } };
+  /** Nom refusé par `categories_nom_check` ou `categories_nom_longueur_check`. */
+  const nomCategorieRefuse = (nomCategorie: string) =>
+    nomCategorie === "" || Array.from(nomCategorie).length > 50;
+  /** Une autre catégorie active porte déjà ce nom (index `categories_nom_actif_unique`). */
+  const nomCategoriePris = (nomCategorie: string, sauf?: string) =>
+    categories.some((c) => c.active && c.id !== sauf && c.nom.toLowerCase() === nomCategorie.toLowerCase());
+  const btrim = (valeur: unknown) => (typeof valeur === "string" ? valeur.replace(/^ +| +$/g, "") : null);
+
+  /** `lister_categories_administration` de la migration 4.1. */
+  function listerCategoriesAdministration(): RetourRpc {
+    if (!administrateur()) return REFUS_ADMINISTRATEUR;
+    const lignes = [...categories]
+      .sort((a, b) => a.ordre - b.ordre)
+      .map((c) => ({
+        id: c.id,
+        nom: c.nom,
+        active: c.active,
+        nombre_demandes: demandes.filter((d) => categorieDe(d) === c.id).length,
+      }));
+    return { data: lignes, error: null };
+  }
+
+  /** `ajouter_categorie` de la migration 4.1. */
+  function ajouterCategorie(parametres: Record<string, unknown>): RetourRpc {
+    if (!administrateur()) return REFUS_ADMINISTRATEUR;
+    const nomCategorie = btrim(parametres.p_nom);
+    if (nomCategorie === null) return { data: null, error: { code: "22004", message: "nom absent" } };
+    if (nomCategorieRefuse(nomCategorie)) return { data: null, error: { code: "23514", message: "contrainte" } };
+    if (nomCategoriePris(nomCategorie)) {
+      return { data: null, error: { code: "NV501", message: "Une catégorie active porte déjà ce nom." } };
+    }
+    const ordre = Math.max(0, ...categories.map((c) => c.ordre)) + 1;
+    const id = `c1000000-0000-4000-8000-${String(ordre).padStart(12, "0")}`;
+    categories.push({ id, nom: nomCategorie, active: true, ordre });
+    return { data: { id, nom: nomCategorie }, error: null };
+  }
+
+  /** `modifier_categorie` de la migration 4.1 (renommage). */
+  function modifierCategorie(parametres: Record<string, unknown>): RetourRpc {
+    if (!administrateur()) return REFUS_ADMINISTRATEUR;
+    const nomCategorie = btrim(parametres.p_nom);
+    if (typeof parametres.p_categorie !== "string" || nomCategorie === null) {
+      return { data: null, error: { code: "22004", message: "paramètre absent" } };
+    }
+    const categorie = categories.find((c) => c.id === String(parametres.p_categorie).toLowerCase());
+    if (!categorie) return { data: null, error: { code: "NV502", message: "catégorie introuvable" } };
+    if (nomCategorie === categorie.nom) {
+      return { data: { id: categorie.id, nom: categorie.nom, change: false }, error: null };
+    }
+    if (nomCategorieRefuse(nomCategorie)) return { data: null, error: { code: "23514", message: "contrainte" } };
+    if (categorie.active && nomCategoriePris(nomCategorie, categorie.id)) {
+      return { data: null, error: { code: "NV501", message: "Une catégorie active porte déjà ce nom." } };
+    }
+    for (const d of demandes.filter((d) => categorieDe(d) === categorie.id)) {
+      d.categorie_id = categorie.id;
+      d.categorie = nomCategorie;
+    }
+    categorie.nom = nomCategorie;
+    return { data: { id: categorie.id, nom: nomCategorie, change: true }, error: null };
+  }
+
   /** Fonctions SQL appelées avec la session (rôle `authenticated`). */
   const rpcSession = vi.fn((nom: string, parametres: Record<string, unknown> = {}) => ({
     abortSignal: async (signal: AbortSignal): Promise<RetourRpc> => {
@@ -589,6 +662,9 @@ export function creerSimulationConnexion() {
       // Appelant vérifié par `exiger_administrateur` (NV202), pas NV201.
       if (nom === "lister_comptes") return listerComptes();
       if (nom === "supprimer_demande") return supprimerDemande(parametres);
+      if (nom === "lister_categories_administration") return listerCategoriesAdministration();
+      if (nom === "ajouter_categorie") return ajouterCategorie(parametres);
+      if (nom === "modifier_categorie") return modifierCategorie(parametres);
       if (
         ![
           "compter_a_traiter",

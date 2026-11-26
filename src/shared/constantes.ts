@@ -24,6 +24,12 @@ export const LONGUEURS_MAXIMALES_PARAMETRES = {
   contactDonnees: 200,
 } as const;
 
+/**
+ * Longueur maximale du nom d'une catégorie (FR-26, écran A2), en caractères :
+ * la même que la contrainte `categories_nom_longueur_check` de la base.
+ */
+export const LONGUEUR_MAXIMALE_CATEGORIE = 50;
+
 /** Longueur minimale d'un mot de passe, temporaire ou définitif (NFR-11). */
 export const LONGUEUR_MINIMALE_MOT_DE_PASSE = 12;
 

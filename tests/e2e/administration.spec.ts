@@ -26,7 +26,15 @@ import { identifiantsE2e } from "./environnement";
 // `supprimer_demande` refuse son appel direct (NV202), sur une référence
 // qui n'existe pas : aucune vraie demande n'est jamais supprimée.
 //
-// Demande la migration `20261124160000_comptes_administration.sql` sur dev.
+// Story 4.1 : le menu n'a pas non plus « Catégories » ; à l'adresse
+// `/admin/categories`, le collaborateur voit S1, sans aucune catégorie ni
+// champ d'ajout, et les vraies fonctions SQL `lister_categories_administration`,
+// `ajouter_categorie` et `modifier_categorie` refusent son appel direct
+// (NV202) : aucune catégorie n'est jamais créée ni renommée.
+//
+// Demande la migration `20261124160000_comptes_administration.sql` sur dev ;
+// les tests des catégories demandent aussi
+// `20261126150000_categories_administration.sql`.
 
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
 
@@ -234,6 +242,62 @@ test("collaborateur : la vraie fonction SQL supprimer_demande refuse un appel di
     const { data, error } = await supabase.rpc("supprimer_demande", { p_reference: "NOVA-1999-9999" });
     expect(error?.code ?? null).toBe("NV202");
     expect(data).toBeNull();
+  } finally {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+});
+
+test("collaborateur : ni « Catégories » dans le menu, ni écran A2 à l'adresse forcée (S1)", async ({ page }) => {
+  // Story 4.1. Demande la migration `20261126150000_categories_administration.sql` sur dev.
+  await seConnecter(page);
+  await expect(page.getByRole("link", { name: "Catégories" })).toHaveCount(0);
+
+  const reponse = await page.goto("/admin/categories");
+  expect(reponse?.ok()).toBe(true);
+  await expect(page.getByRole("heading", { level: 1, name: S1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/categories$/);
+  await expect(page.locator("[data-slot=menu-lateral]")).toBeVisible();
+  await expect(page.locator("[data-slot=tableau-categories]")).toHaveCount(0);
+  await expect(page.locator("[data-slot=ajouter-categorie]")).toHaveCount(0);
+  await expect(page.getByLabel("Nouvelle catégorie")).toHaveCount(0);
+  const html = (await reponse?.text()) ?? "";
+  expect(html).not.toContain("tableau-categories");
+  expect(html).not.toContain("ligne-categorie");
+  expect(html).not.toContain("ajouter-categorie");
+});
+
+test("collaborateur : les vraies fonctions SQL des catégories refusent un appel direct (NV202)", async () => {
+  // Story 4.1 : exécutables par `authenticated`, mais chacune commence par
+  // `exiger_administrateur`. Le renommage vise un identifiant qui n'existe
+  // pas, et le nom ajouté est un nom d'essai : même un refus manquant ne
+  // toucherait aucune vraie catégorie. Demande la migration
+  // `20261126150000_categories_administration.sql` sur dev.
+  const { email, motDePasse } = identifiantsE2e(process.env);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+  expect(url, "NEXT_PUBLIC_SUPABASE_URL dans .env.local").not.toBe("");
+  expect(cle, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY dans .env.local").not.toBe("");
+
+  const supabase = createClient(url, cle, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: erreurConnexion } = await supabase.auth.signInWithPassword({ email, password: motDePasse });
+  expect(erreurConnexion?.code ?? null, "connexion du compte de test").toBeNull();
+  try {
+    const lister = await supabase.rpc("lister_categories_administration");
+    expect(lister.error?.code ?? null).toBe("NV202");
+    expect(lister.data).toBeNull();
+
+    const ajouter = await supabase.rpc("ajouter_categorie", { p_nom: "Essai e2e refusé" });
+    expect(ajouter.error?.code ?? null).toBe("NV202");
+    expect(ajouter.data).toBeNull();
+
+    const modifier = await supabase.rpc("modifier_categorie", {
+      p_categorie: "00000000-0000-4000-8000-000000000000",
+      p_nom: "Essai e2e refusé",
+    });
+    expect(modifier.error?.code ?? null).toBe("NV202");
+    expect(modifier.data).toBeNull();
   } finally {
     await supabase.auth.signOut({ scope: "local" });
   }

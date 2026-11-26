@@ -4,6 +4,7 @@
 
 import {
   formaterNombre,
+  LONGUEUR_MAXIMALE_CATEGORIE,
   LONGUEUR_MINIMALE_DESCRIPTION,
   LONGUEUR_MAXIMALE_MOT_DE_PASSE_OCTETS,
   LONGUEUR_MINIMALE_MOT_DE_PASSE,
@@ -184,6 +185,8 @@ export const MESSAGES_INTERNE = {
   administration: "Administration",
   /** Écran A1 (story 3.1). */
   comptes: "Comptes",
+  /** Écran A2 (story 4.1). */
+  categories: "Catégories",
   version: (version: string) => `Version v${version}`,
 } as const;
 
@@ -305,6 +308,55 @@ export const MESSAGES_COMPTES = {
     /** Toast de succès (5 s). */
     compteModifie: "Compte modifié",
   },
+} as const;
+
+/**
+ * Écran A2 « Catégories » (story 4.1 ; EXPERIENCE.md, A2 ; FR-26). Les
+ * textes absents de l'UX (« Catégorie renommée », les deux erreurs de
+ * saisie et la panne) ont été validés par Aurel le 26 nov. 2026. Pas d'état
+ * vide : il reste toujours au moins une catégorie active (story 4.2).
+ */
+export const MESSAGES_CATEGORIES = {
+  titre: "Catégories",
+  legendeTableau: "Catégories, dans l'ordre du formulaire",
+  colonnes: {
+    nom: "Nom",
+    etat: "État",
+    nombreDemandes: "Nombre de demandes",
+    actions: "Actions",
+  },
+  active: "Active",
+  /** Badge gris, toujours écrit en toutes lettres (story 4.2). */
+  desactivee: "Désactivée",
+  /** État d'erreur, suivi de « Réessayer » (`BoutonReessayer`, texte de `MESSAGES_LISTE`). */
+  erreur: "Impossible de charger les catégories.",
+  chargement: "Chargement…",
+  /** Champ et bouton en haut de l'écran. */
+  nouvelleCategorie: "Nouvelle catégorie",
+  ajouter: "Ajouter",
+  /** Toast de succès (5 s) après un ajout. */
+  ajoutee: (nom: string) => `Catégorie ${nom} ajoutée. Elle est déjà proposée dans le formulaire.`,
+  /** « Renommer » de la colonne Actions, puis le nom en champ modifiable. */
+  renommer: "Renommer",
+  /** Nom du bouton pour les lecteurs d'écran : « Renommer la catégorie Autre ». */
+  renommerNom: (nom: string) => `Renommer la catégorie ${nom}`,
+  /** Nom du champ de la ligne pour les lecteurs d'écran : « Nouveau nom de la catégorie Autre ». */
+  champRenommage: (nom: string) => `Nouveau nom de la catégorie ${nom}`,
+  enregistrer: "Enregistrer",
+  /** Nom du bouton pour les lecteurs d'écran : « Enregistrer le nom de la catégorie Autre ». */
+  enregistrerNom: (nom: string) => `Enregistrer le nom de la catégorie ${nom}`,
+  annuler: "Annuler",
+  /** Nom du bouton pour les lecteurs d'écran : « Annuler le renommage de la catégorie Autre ». */
+  annulerNom: (nom: string) => `Annuler le renommage de la catégorie ${nom}`,
+  /** Toast de succès (5 s) après un renommage. */
+  renommee: "Catégorie renommée",
+  /** Erreurs sous le champ concerné ; la saisie est gardée. */
+  nomObligatoire: "Ce champ est obligatoire",
+  nomTropLong: depasse("Le nom", LONGUEUR_MAXIMALE_CATEGORIE),
+  /** Réponse `CONFLIT` : texte exact de l'UX. */
+  nomDejaPris: "Une catégorie active porte déjà ce nom.",
+  /** Panne (et tout refus imprévu) : rien n'a été écrit, la saisie est gardée. */
+  enregistrementImpossible: "La catégorie n'a pas pu être enregistrée. Réessayez.",
 } as const;
 
 /**

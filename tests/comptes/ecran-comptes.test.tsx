@@ -64,7 +64,7 @@ describe("section « Administration » du menu", () => {
 
   it("administrateur : titre « Administration », puis « Comptes » (icône Users) vers /admin/comptes", async () => {
     const html = await rendreSection();
-    expect(texteDe(html)).toBe("Administration Comptes");
+    expect(texteDe(html)).toBe("Administration Comptes Catégories");
     expect(html).toMatch(/<a[^>]*href="\/admin\/comptes"[^>]*>.*lucide-users.*Comptes<\/span><\/a>/);
     // Le titre nomme la liste pour les lecteurs d'écran.
     const id = html.match(/<p id="([^"]+)"[^>]*>Administration<\/p>/)?.[1];
@@ -72,10 +72,11 @@ describe("section « Administration » du menu", () => {
     expect(html).toContain(`<ul aria-labelledby="${id}"`);
   });
 
-  it("seulement « Comptes » pour l'instant (Catégories, Informations générales, Données personnelles : epics 4 et 6)", async () => {
+  it("« Comptes » puis « Catégories » (story 4.1) ; pas encore Informations générales ni Données personnelles (story 4.3, epic 6)", async () => {
     const html = await rendreSection();
-    expect(html.match(/<a /g)).toHaveLength(1);
-    expect(texteDe(html)).not.toMatch(/Catégories|Informations générales|Données personnelles/);
+    expect(html.match(/<a /g)).toHaveLength(2);
+    expect(html.indexOf('href="/admin/comptes"')).toBeLessThan(html.indexOf('href="/admin/categories"'));
+    expect(texteDe(html)).not.toMatch(/Informations générales|Données personnelles/);
   });
 
   it("sur /admin/comptes : « Comptes » actif (aria-current=\"page\")", async () => {

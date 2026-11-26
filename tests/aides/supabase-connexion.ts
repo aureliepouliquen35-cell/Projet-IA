@@ -68,6 +68,11 @@ import { vi } from "vitest";
 //   Le blocage d'Auth (`auth.admin.updateUserById`, `ban_duration`) est
 //   gardé dans `bannis` ; un compte bloqué reçoit `user_banned` à la
 //   connexion.
+// - Modification du nom ou du rôle (story 3.3) : la même `modifier_compte`,
+//   avec les règles de la migration 3.3 : `p_actif`, `p_nom` et `p_role`
+//   facultatifs ; `NV203` aussi quand le dernier administrateur actif
+//   passerait collaborateur ; nom ou rôle hors des contraintes : `23514` ;
+//   réponse `{ nom, email, role, actif, change, ancien_role }`.
 // - Réinitialisation du mot de passe (story 3.5) : `reinitialiser_mdp` par le
 //   client secret, avec les règles de la migration : `NV202` (auteur),
 //   `NV205` (moins de 12 caractères), `NV204` (compte inconnu) ; sinon
@@ -374,8 +379,18 @@ export function creerSimulationConnexion() {
   const autreAdministrateurActif = (id: string) =>
     [...profils.values()].some((p) => p.role === "administrateur" && p.actif && p.id !== id);
 
-  /** `modifier_compte` de la migration 3.4. */
+  /**
+   * `modifier_compte` de la migration 3.3 (qui remplace celle de la 3.4) :
+   * `p_actif`, `p_nom`, `p_role` facultatifs (absent ou `null` : inchangé),
+   * au moins un des trois (22004) ; nom nettoyé des espaces de bord ; nom
+   * vide ou de plus de 100 caractères, rôle inconnu : 23514 (contraintes de
+   * `profils`, avec leur nom dans le message).
+   */
   function modifierCompte(p: Record<string, unknown>): RetourRpc {
+    const donne = (cle: string) => p[cle] !== undefined && p[cle] !== null;
+    if (!donne("p_auteur") || !donne("p_compte") || (!donne("p_actif") && !donne("p_nom") && !donne("p_role"))) {
+      return { data: null, error: { code: "22004", message: "paramètre absent" } };
+    }
     const auteur = profils.get(String(p.p_auteur));
     if (!auteur || !auteur.actif || auteur.doit_changer_mdp || auteur.role !== "administrateur") {
       return { data: null, error: { code: "NV202", message: "Accès refusé" } };
@@ -383,12 +398,33 @@ export function creerSimulationConnexion() {
     const compte = profils.get(String(p.p_compte));
     if (!compte) return { data: null, error: { code: "NV204", message: "compte introuvable" } };
     const email = compte.email ?? [...comptes].find(([, c]) => c.id === compte.id)?.[0] ?? "";
-    if (compte.actif === p.p_actif) return { data: { nom: compte.nom, email, change: false }, error: null };
-    if (p.p_actif === false && compte.role === "administrateur" && !autreAdministrateurActif(compte.id)) {
+    const nom = donne("p_nom") ? String(p.p_nom).trim() : compte.nom;
+    const role = donne("p_role") ? String(p.p_role) : compte.role;
+    const actif = donne("p_actif") ? p.p_actif === true : compte.actif;
+    const reponse = (change: boolean, ancienRole: string) => ({
+      data: { nom: compte.nom, email, role: compte.role, actif: compte.actif, change, ancien_role: ancienRole },
+      error: null,
+    });
+    if (nom === compte.nom && role === compte.role && actif === compte.actif) return reponse(false, compte.role);
+    if (
+      compte.role === "administrateur" &&
+      compte.actif &&
+      !(role === "administrateur" && actif) &&
+      !autreAdministrateurActif(compte.id)
+    ) {
       return { data: null, error: { code: "NV203", message: "dernier administrateur" } };
     }
-    compte.actif = p.p_actif === true;
-    return { data: { nom: compte.nom, email, change: true }, error: null };
+    if (nom === "" || Array.from(nom).length > 100) {
+      return { data: null, error: { code: "23514", message: 'violates check constraint "profils_nom_check"' } };
+    }
+    if (role !== "collaborateur" && role !== "administrateur") {
+      return { data: null, error: { code: "23514", message: 'violates check constraint "profils_role_check"' } };
+    }
+    const ancienRole = compte.role;
+    compte.nom = nom;
+    compte.role = role;
+    compte.actif = actif;
+    return reponse(true, ancienRole);
   }
 
   /** `retablir_compte` de la migration 3.4 (retour arrière, sans auteur). */

@@ -122,7 +122,8 @@ describe("RM-7 : réservée aux administrateurs", () => {
     expect(admin.creerClientSecret).not.toHaveBeenCalled();
     expect(admin.createUser).not.toHaveBeenCalled();
     expect(admin.rpc).not.toHaveBeenCalled();
-    expect(refresh).not.toHaveBeenCalled();
+    // La page est recalculée : S1, menu sans Administration (story 3.3).
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("administratrice rétrogradée entre deux actions : ACCES_REFUSE dès l'action suivante", async () => {

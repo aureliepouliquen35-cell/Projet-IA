@@ -15,8 +15,8 @@ const simulation = vi.hoisted(() => ({
   sub: null as string | null,
   /** Cookies que le rafraîchissement de la session pose (setAll). */
   cookiesRafraichis: [] as { name: string; value: string; options: Record<string, unknown> }[],
-  /** Profil lu par le proxy (`actif`, `doit_changer_mdp`), ou panne. */
-  profil: { doit_changer_mdp: false } as { actif?: unknown; doit_changer_mdp: unknown } | null,
+  /** Profil lu par le proxy (`actif`, `doit_changer_mdp`, `role`), ou panne. */
+  profil: { doit_changer_mdp: false } as { actif?: unknown; doit_changer_mdp: unknown; role?: unknown } | null,
   erreurProfil: null as { code: string; message: string } | null,
   /** Appels de `signOut`, et panne éventuelle. */
   signOut: [] as unknown[],
@@ -91,7 +91,8 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 import { proxy, config } from "@/proxy";
-import { CACHE_PAGES_INTERNES } from "@/lib/supabase/proxy";
+import { CACHE_PAGES_INTERNES, OPTIONS_COOKIE_ROLE } from "@/lib/supabase/proxy";
+import { COOKIE_ROLE } from "@/shared/acces";
 import { activiteValide, COOKIE_ACTIVITE, DUREE_INACTIVITE_MS, valeurActivite } from "@/server/garde/activite";
 import { COOKIE_MESSAGE_CONNEXION, dechiffrerPassage } from "@/server/passage";
 
@@ -451,6 +452,104 @@ describe("compte désactivé pendant la session (FR-22, story 3.4)", () => {
     expect(reponse.status).toBe(200);
     expect(simulation.signOut).toEqual([]);
     expect(reponse.cookies.get(COOKIE_MESSAGE_CONNEXION)).toBeUndefined();
+  });
+});
+
+describe("rôle relu pour le menu : cookie nova_role (story 3.3, FR-22)", () => {
+  beforeEach(() => {
+    simulation.sub = ID;
+  });
+
+  it.each(["administrateur", "collaborateur"])(
+    "page protégée passée : nova_role = %s, lisible par la page (pas httpOnly), pour tout le site",
+    async (role) => {
+      simulation.profil = { actif: true, doit_changer_mdp: false, role };
+      const reponse = await proxy(requeteConnectee("/demandes"));
+      expect(reponse.status).toBe(200);
+      expect(reponse.cookies.get(COOKIE_ROLE)).toMatchObject({ value: role, path: "/", sameSite: "lax" });
+      expect(reponse.cookies.get(COOKIE_ROLE)?.httpOnly).toBeFalsy();
+      expect(OPTIONS_COOKIE_ROLE.httpOnly).toBe(false);
+      // Une seule lecture du profil, qui demande aussi le rôle.
+      expect(simulation.colonnesLues).toHaveLength(1);
+      expect(simulation.colonnesLues[0].split(",").map((c) => c.trim())).toEqual(["actif", "doit_changer_mdp", "role"]);
+    },
+  );
+
+  it("administrateur rétrogradé : la page suivante pose collaborateur, sans renvoi (la page décide, S1)", async () => {
+    simulation.profil = { actif: true, doit_changer_mdp: false, role: "collaborateur" };
+    const reponse = await proxy(
+      requete("/admin/comptes", {
+        cookies: {
+          [COOKIE_SESSION]: "jeton",
+          [COOKIE_ACTIVITE]: valeurActivite(Date.now() - 60 * 1000),
+          [COOKIE_ROLE]: "administrateur",
+        },
+      }),
+    );
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("location")).toBeNull();
+    expect(reponse.cookies.get(COOKIE_ROLE)?.value).toBe("collaborateur");
+  });
+
+  it.each([
+    ["rôle inconnu", () => {
+      simulation.profil = { actif: true, doit_changer_mdp: false, role: "superadmin" };
+    }],
+    ["rôle absent", () => {
+      simulation.profil = { actif: true, doit_changer_mdp: false };
+    }],
+    ["profil illisible", () => {
+      simulation.erreurProfil = { code: "PGRST000", message: "panne" };
+    }],
+  ])("%s : aucun cookie posé, la requête passe", async (_, preparer) => {
+    preparer();
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.status).toBe(200);
+    expect(reponse.cookies.get(COOKIE_ROLE)).toBeUndefined();
+  });
+
+  it("Server Function : aucun cookie (le profil n'est pas lu)", async () => {
+    simulation.profil = { actif: true, doit_changer_mdp: false, role: "administrateur" };
+    const reponse = await proxy(requeteConnectee("/admin/comptes", { action: true }));
+    expect(reponse.cookies.get(COOKIE_ROLE)).toBeUndefined();
+    expect(simulation.lecturesProfil).toBe(0);
+  });
+
+  it("compte désactivé : session fermée, cookie de rôle effacé", async () => {
+    simulation.profil = { actif: false, doit_changer_mdp: false, role: "administrateur" };
+    const reponse = await proxy(requeteConnectee("/demandes"));
+    expect(reponse.status).toBe(307);
+    expect(reponse.cookies.get(COOKIE_ROLE)).toMatchObject({ value: "", maxAge: 0, path: "/" });
+  });
+
+  it("session expirée (plus de 8 h sans activité) : cookie de rôle effacé", async () => {
+    simulation.profil = { actif: true, doit_changer_mdp: false, role: "administrateur" };
+    const reponse = await proxy(
+      requete("/demandes", {
+        cookies: {
+          [COOKIE_SESSION]: "jeton",
+          [COOKIE_ACTIVITE]: valeurActivite(Date.now() - 9 * 60 * 60 * 1000),
+          [COOKIE_ROLE]: "administrateur",
+        },
+      }),
+    );
+    expect(reponse.status).toBe(307);
+    expect(reponse.headers.get("location")).toBe("http://localhost:3000/connexion");
+    expect(reponse.cookies.get(COOKIE_ROLE)).toMatchObject({ value: "", maxAge: 0, path: "/" });
+  });
+
+  it("pages publiques : aucun cookie de rôle", async () => {
+    simulation.profil = { actif: true, doit_changer_mdp: false, role: "administrateur" };
+    const reponse = await proxy(requete("/", { cookies: { [COOKIE_SESSION]: "jeton" } }));
+    expect(reponse.cookies.get(COOKIE_ROLE)).toBeUndefined();
+  });
+
+  it("simple signal : le proxy ne refuse ni ne renvoie rien selon le rôle", async () => {
+    simulation.profil = { actif: true, doit_changer_mdp: false, role: "collaborateur" };
+    for (const chemin of ["/demandes", "/admin/comptes"]) {
+      const reponse = await proxy(requeteConnectee(chemin));
+      expect(reponse.status, chemin).toBe(200);
+    }
   });
 });
 

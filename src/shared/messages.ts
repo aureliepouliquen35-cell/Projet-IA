@@ -92,6 +92,11 @@ export const MESSAGES_COMPTE = {
    * l'encadré de la fenêtre ; la saisie est gardée.
    */
   reinitialisationImpossible: "Le mot de passe n'a pas pu être réinitialisé. Réessayez.",
+  /**
+   * Réponse `ERREUR_INTERNE` de la modification du nom ou du rôle (story
+   * 3.3), dans l'encadré de la fenêtre ; la saisie est gardée.
+   */
+  modificationImpossible: "Le compte n'a pas pu être modifié. Réessayez.",
 } as const;
 
 /** Informations générales (écran A3, FR-31), textes de l'UX. */
@@ -278,6 +283,27 @@ export const MESSAGES_COMPTES = {
     copie: "Copié",
     /** Toast de succès (5 s), comme à la création. */
     motDePasseReinitialise: "Mot de passe réinitialisé",
+  },
+  /**
+   * « Modifier » de la colonne Actions, en premier (story 3.3 ; FR-22,
+   * FR-25, RM-9). Les erreurs sous les champs, la panne et le refus du
+   * dernier administrateur viennent de `MESSAGES_COMPTE`.
+   */
+  modification: {
+    bouton: "Modifier",
+    /** Nom du bouton pour les lecteurs d'écran : « Modifier le compte de Lucas Bernard ». */
+    boutonNom: (nom: string) => `Modifier le compte de ${nom}`,
+    /** Titre de la fenêtre. */
+    titre: (nom: string) => `Modifier le compte de ${nom}`,
+    nom: "Nom",
+    role: "Rôle",
+    /** Affiché en texte : il ne peut pas être modifié. */
+    email: "Email",
+    annuler: "Annuler",
+    enregistrer: "Enregistrer",
+    enregistrementEnCours: "Enregistrement…",
+    /** Toast de succès (5 s). */
+    compteModifie: "Compte modifié",
   },
 } as const;
 

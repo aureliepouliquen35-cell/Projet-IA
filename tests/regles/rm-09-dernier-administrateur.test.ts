@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // RM-9 : il reste toujours au moins un administrateur actif (FR-25, AD-10).
-// - désactiver le dernier administrateur actif est refusé, y compris son
+// - désactiver (story 3.4) ou rétrograder (story 3.3) le dernier
+//   administrateur actif est refusé, y compris son
 //   propre compte, avec le message exact « Impossible : il doit rester au
 //   moins un administrateur actif. », et rien ne change (ni le profil, ni
 //   Supabase Auth, ni le journal) ;
@@ -24,7 +25,8 @@ vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 
 import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
-import { changerEtatCompte } from "@/server/admin";
+import { actionModifierCompte } from "@/server/actions/modifier-compte";
+import { changerEtatCompte, modifierCompte } from "@/server/admin";
 
 import { ID_SOPHIE, PROFIL_SOPHIE, type ProfilSimule } from "../aides/supabase-connexion";
 
@@ -127,4 +129,76 @@ describe("RM-9 : la base tient la règle (AD-10)", () => {
       expect(texte).toContain(`raise exception '${MESSAGE}' using errcode = 'NV203';`);
     },
   );
+});
+
+describe("RM-9 : le dernier administrateur actif ne peut pas être rétrogradé (story 3.3)", () => {
+  it("seule administratrice active, elle se passe collaboratrice : refus avec le message exact, rien ne change", async () => {
+    await expect(actionModifierCompte({ compteId: ID_SOPHIE, nom: "Sophie Martin", role: "collaborateur" })).resolves.toEqual({
+      ok: false,
+      code: "CONFLIT",
+      message: MESSAGE,
+    });
+    expect(administrateursActifs()).toEqual([ID_SOPHIE]);
+    expect(simulation.profils.get(ID_SOPHIE)).toMatchObject({ nom: "Sophie Martin", role: "administrateur" });
+    expect(simulation.journal()).toEqual([]);
+  });
+
+  it("un second administrateur désactivé ne compte pas : toujours refusé", async () => {
+    simulation.profils.set(ID_LEA, { ...PROFIL_LEA, actif: false });
+    await expect(actionModifierCompte({ compteId: ID_SOPHIE, nom: "Sophie Martin", role: "collaborateur" })).resolves.toMatchObject({
+      code: "CONFLIT",
+      message: MESSAGE,
+    });
+  });
+
+  it("avec un autre administrateur actif : la rétrogradation passe, il en reste un", async () => {
+    simulation.profils.set(ID_LEA, { ...PROFIL_LEA });
+    await expect(actionModifierCompte({ compteId: ID_LEA, nom: "Léa Garnier", role: "collaborateur" })).resolves.toMatchObject({ ok: true });
+    expect(administrateursActifs()).toEqual([ID_SOPHIE]);
+  });
+
+  it("deux administrateurs au même instant, l'un contre l'autre : un seul réussit (le second est refusé, NV202)", async () => {
+    simulation.profils.set(ID_LEA, { ...PROFIL_LEA });
+    const premier = await modifierCompte({ compteId: ID_LEA, nom: "Léa Garnier", role: "collaborateur" }, { auteur: ID_SOPHIE });
+    const second = await modifierCompte({ compteId: ID_SOPHIE, nom: "Sophie Martin", role: "collaborateur" }, { auteur: ID_LEA });
+    expect(premier.ok).toBe(true);
+    expect(second).toMatchObject({ ok: false, code: "ACCES_REFUSE" });
+    expect(administrateursActifs()).toEqual([ID_SOPHIE]);
+  });
+
+  it("deux administrateurs au même instant, chacun sur son propre compte : le second reçoit le message exact", async () => {
+    simulation.profils.set(ID_LEA, { ...PROFIL_LEA });
+    expect((await modifierCompte({ compteId: ID_LEA, nom: "Léa Garnier", role: "collaborateur" }, { auteur: ID_LEA })).ok).toBe(true);
+    await expect(
+      modifierCompte({ compteId: ID_SOPHIE, nom: "Sophie Martin", role: "collaborateur" }, { auteur: ID_SOPHIE }),
+    ).resolves.toMatchObject({ code: "CONFLIT", message: MESSAGE });
+    expect(administrateursActifs()).toEqual([ID_SOPHIE]);
+  });
+
+  it("l'un rétrograde pendant que l'autre désactive : la règle tient aussi entre les deux gestes", async () => {
+    simulation.profils.set(ID_LEA, { ...PROFIL_LEA });
+    expect((await modifierCompte({ compteId: ID_LEA, nom: "Léa Garnier", role: "collaborateur" }, { auteur: ID_LEA })).ok).toBe(true);
+    await expect(changerEtatCompte(ID_SOPHIE, false, { auteur: ID_SOPHIE })).resolves.toMatchObject({
+      code: "CONFLIT",
+      message: MESSAGE,
+    });
+    expect(administrateursActifs()).toEqual([ID_SOPHIE]);
+  });
+});
+
+describe("RM-9 : la nouvelle modifier_compte tient la règle pour le rôle comme pour l'état (story 3.3, AD-10)", () => {
+  const texte = readFileSync(join(process.cwd(), "supabase", "migrations", "20261126090000_modifier_compte.sql"), "utf8")
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ");
+
+  it("verrouille toutes les lignes administrateur (même ordre) avant de compter, et refuse avec le message exact (NV203)", () => {
+    const verrou = texte.indexOf("where p.role = 'administrateur' order by p.id for update;");
+    const regle = texte.indexOf("and not (v_nouveau_role = 'administrateur' and v_nouvel_actif)");
+    const compte = texte.indexOf("and p.id <> p_compte");
+    expect(verrou).toBeGreaterThan(0);
+    expect(regle).toBeGreaterThan(verrou);
+    expect(compte).toBeGreaterThan(regle);
+    expect(texte).toContain(`raise exception '${MESSAGE}' using errcode = 'NV203';`);
+    expect(texte.indexOf(`'${MESSAGE}'`)).toBeLessThan(texte.indexOf("update public.profils"));
+  });
 });

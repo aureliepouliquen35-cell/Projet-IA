@@ -2,6 +2,7 @@ import { CircleAlert } from "lucide-react";
 
 import { BoutonReessayer } from "@/components/interne/bouton-reessayer";
 import { EtatCompte } from "@/components/interne/etat-compte";
+import { ModifierCompte } from "@/components/interne/modifier-compte";
 import { ReinitialiserMotDePasse } from "@/components/interne/reinitialiser-mot-de-passe";
 import type { CompteAdministration } from "@/server/lectures/comptes";
 import { LIBELLES_ROLES } from "@/shared/constantes";
@@ -15,10 +16,10 @@ import { MESSAGES_COMPTES } from "@/shared/messages";
 // un compte désactivé porte le badge gris *Désactivé*, toujours écrit en
 // toutes lettres (la couleur n'est jamais la seule information).
 //
-// Colonne « Actions » : « Réinitialiser le mot de passe » (story 3.5,
+// Colonne « Actions » : « Modifier » (story 3.3, `modifier-compte.tsx`), puis
+// « Réinitialiser le mot de passe » (story 3.5,
 // `reinitialiser-mot-de-passe.tsx`), puis « Désactiver » (avec sa fenêtre de
-// confirmation) ou « Réactiver » (story 3.4, `etat-compte.tsx`) ; « Modifier »
-// arrive avec la story 3.3, en premier.
+// confirmation) ou « Réactiver » (story 3.4, `etat-compte.tsx`).
 // Le bouton « Créer un compte » est à côté du titre (`creer-compte.tsx`).
 // Pas d'état vide : l'administrateur connecté a toujours son compte.
 
@@ -63,6 +64,7 @@ export function TableauComptes({ comptes }: { comptes: CompteAdministration[] })
               <td className={CELLULE}>{compte.actif ? MESSAGES_COMPTES.actif : <BadgeDesactive />}</td>
               <td className={CELLULE}>
                 <div className="flex flex-wrap items-center gap-2">
+                  <ModifierCompte compte={{ id: compte.id, nom: compte.nom, email: compte.email, role: compte.role }} />
                   <ReinitialiserMotDePasse compte={{ id: compte.id, nom: compte.nom }} />
                   <EtatCompte compte={{ id: compte.id, nom: compte.nom, actif: compte.actif }} />
                 </div>

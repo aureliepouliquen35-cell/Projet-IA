@@ -99,3 +99,28 @@ export type DonneesReinitialisation = z.infer<typeof schemaReinitialisation>;
 export function validerReinitialisation(saisie: unknown): Validation<DonneesReinitialisation> {
   return validerSaisie(schemaReinitialisation, CHAMPS_REINITIALISATION, saisie);
 }
+
+// ---------------------------------------------------------------------------
+// Modification du nom ou du rôle (story 3.3 ; FR-22, FR-25)
+// ---------------------------------------------------------------------------
+
+/** Champs de la modification, dans l'ordre de la fenêtre (l'email n'est pas modifiable). */
+export const CHAMPS_MODIFICATION = ["compteId", "nom", "role"] as const;
+
+export const schemaModificationCompte = z.object({
+  // Identifiant du compte Supabase Auth (UUID), en minuscules comme dans la base.
+  compteId: z
+    .string({ error: MESSAGES_COMPTE.compteInvalide })
+    .regex(FORME_IDENTIFIANT, MESSAGES_COMPTE.compteInvalide)
+    .transform((texte) => texte.toLowerCase()),
+  // Mêmes règles et mêmes messages qu'à la création.
+  nom: schemaCompte.shape.nom,
+  role: schemaCompte.shape.role,
+});
+
+/** Modification vérifiée et nettoyée, prête à être envoyée. */
+export type DonneesModificationCompte = z.infer<typeof schemaModificationCompte>;
+
+export function validerModificationCompte(saisie: unknown): Validation<DonneesModificationCompte> {
+  return validerSaisie(schemaModificationCompte, CHAMPS_MODIFICATION, saisie);
+}

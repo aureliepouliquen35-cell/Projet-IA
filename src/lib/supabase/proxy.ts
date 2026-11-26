@@ -12,9 +12,11 @@ import {
   ADRESSE_ACCUEIL_INTERNE,
   ADRESSE_CONNEXION,
   ADRESSE_NOUVEAU_MOT_DE_PASSE,
+  COOKIE_ROLE,
   estPageNouveauMotDePasse,
   estPageProtegee,
 } from "@/shared/acces";
+import { ROLES, type Role } from "@/shared/constantes";
 
 /**
  * Pages internes : jamais gardées en cache, ni par le navigateur (bouton
@@ -24,6 +26,18 @@ export const CACHE_PAGES_INTERNES = "private, no-cache, no-store, max-age=0, mus
 
 /** Au-delà, la lecture du profil est abandonnée : la garde de la page décidera. */
 const DELAI_MS = 8000;
+
+/**
+ * Cookie `nova_role` (story 3.3) : lisible par la page (pas `httpOnly`), pour
+ * tout le site, `sameSite: lax`, `secure` hors développement ; il dure le
+ * temps du navigateur ouvert.
+ */
+export const OPTIONS_COOKIE_ROLE = {
+  httpOnly: false,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV !== "development",
+  path: "/",
+};
 
 // Garde de chaque requête (AD-7). Pour toutes les pages, il rafraîchit la
 // session Supabase (cookies d'auth) avant chaque rendu. Pour les pages
@@ -39,7 +53,8 @@ const DELAI_MS = 8000;
 // - mot de passe temporaire à remplacer (`profils.doit_changer_mdp`) : renvoi
 //   vers I2 ; I2 sans changement à faire : renvoi vers « Demandes ». Si le
 //   profil ne peut pas être lu, la requête passe : la garde décide ;
-// - sinon : cookie d'activité renouvelé ;
+// - sinon : cookie d'activité renouvelé, et cookie `nova_role` posé avec le
+//   rôle lu dans le profil (story 3.3) ;
 // - jamais de mise en cache.
 //
 // Une Server Function (requête `POST` avec l'en-tête `next-action`) n'est
@@ -48,8 +63,13 @@ const DELAI_MS = 8000;
 // ferme la session d'un compte désactivé). Une session expirée y est quand
 // même fermée.
 //
-// Le proxy ne regarde pas le rôle : il est relu par la garde de la page
-// (`src/server/garde`), qui reste la vraie protection.
+// Le rôle ne sert ici qu'à un signal d'affichage : le cookie `nova_role`,
+// lisible par la page, que le menu latéral compare au rôle avec lequel il a
+// été rendu, pour se recharger quand il a changé (administrateur rétrogradé,
+// FR-22). Le proxy ne refuse ni ne renvoie rien selon le rôle : il est relu
+// par la garde de la page et des Server Functions (`src/server/garde`), et
+// par la base, qui restent la vraie protection. Pas de cookie pour une
+// Server Function (le profil n'y est pas lu).
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -110,6 +130,7 @@ export async function updateSession(request: NextRequest) {
   const terminerSession = async () => {
     await fermerSession();
     response.cookies.set(COOKIE_ACTIVITE, "", { ...optionsActivite(), maxAge: 0 });
+    response.cookies.set(COOKIE_ROLE, "", { ...OPTIONS_COOKIE_ROLE, maxAge: 0 });
     response.cookies.set(COOKIE_MESSAGE_CONNEXION, valeurSessionTerminee(), optionsMessageConnexion());
     return renvoyer(ADRESSE_CONNEXION);
   };
@@ -127,13 +148,16 @@ export async function updateSession(request: NextRequest) {
   if (!activiteValide(request.cookies.get(COOKIE_ACTIVITE)?.value)) {
     await fermerSession();
     response.cookies.set(COOKIE_ACTIVITE, "", { ...optionsActivite(), maxAge: 0 });
+    response.cookies.set(COOKIE_ROLE, "", { ...OPTIONS_COOKIE_ROLE, maxAge: 0 });
     response.cookies.set(COOKIE_MESSAGE_CONNEXION, valeurSessionExpiree(), optionsMessageConnexion());
     return estAction ? passer() : renvoyer(ADRESSE_CONNEXION);
   }
 
   let destination: string | null = null;
+  let role: Role | null = null;
   if (!estAction) {
     const profil = await lireProfil(id);
+    role = profil?.role ?? null;
     if (profil?.actif === false) return terminerSession();
     const doitChangerMdp = profil?.doitChangerMdp ?? null;
     if (doitChangerMdp === true && !estPageNouveauMotDePasse(chemin)) {
@@ -145,21 +169,23 @@ export async function updateSession(request: NextRequest) {
 
   // Après tous les appels à Supabase : `setAll` remplace `response`.
   poserActivite(response.cookies);
+  // Signal d'affichage du menu : jamais une protection (voir plus haut).
+  if (role) response.cookies.set(COOKIE_ROLE, role, OPTIONS_COOKIE_ROLE);
   return destination ? renvoyer(destination) : passer();
 
   /**
-   * `profils.actif` et `profils.doit_changer_mdp`, lus avec la session (sa
-   * propre ligne, même désactivée) ; `null` si le profil n'existe pas, n'est
-   * pas lisible ou ne répond pas, et pour une valeur inattendue (la garde
-   * décidera).
+   * `profils.actif`, `profils.doit_changer_mdp` et `profils.role`, lus avec
+   * la session (sa propre ligne, même désactivée) ; `null` si le profil
+   * n'existe pas, n'est pas lisible ou ne répond pas, et pour une valeur
+   * inattendue (la garde décidera).
    */
   async function lireProfil(
     idCompte: string,
-  ): Promise<{ actif: boolean | null; doitChangerMdp: boolean | null } | null> {
+  ): Promise<{ actif: boolean | null; doitChangerMdp: boolean | null; role: Role | null } | null> {
     try {
       const { data: profil, error } = await supabase
         .from("profils")
-        .select("actif, doit_changer_mdp")
+        .select("actif, doit_changer_mdp, role")
         .eq("id", idCompte)
         .abortSignal(AbortSignal.timeout(DELAI_MS))
         .maybeSingle();
@@ -167,6 +193,7 @@ export async function updateSession(request: NextRequest) {
       return {
         actif: typeof profil.actif === "boolean" ? profil.actif : null,
         doitChangerMdp: typeof profil.doit_changer_mdp === "boolean" ? profil.doit_changer_mdp : null,
+        role: (ROLES as readonly unknown[]).includes(profil.role) ? (profil.role as Role) : null,
       };
     } catch {
       return null;

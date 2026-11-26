@@ -69,7 +69,7 @@ describe("RM-8 : dans l'application, seul un administrateur crée un compte (sto
     const action = nettoyer(readFileSync(join(racine, "src", "server", "actions", "creer-compte.ts"), "utf8"));
     expect(action).toMatch(/^"use server";/);
     expect(action).toMatch(
-      /return executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) return echec\("ACCES_REFUSE"/,
+      /return executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) \{\s*refresh\(\);\s*return echec\("ACCES_REFUSE"/,
     );
     expect(action).toContain("creerCompte(saisie, { auteur: administrateur.id })");
   });

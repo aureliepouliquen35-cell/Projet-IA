@@ -1,3 +1,5 @@
+import { ROLES, type Role } from "@/shared/constantes";
+
 // Adresses de l'espace interne et de la connexion (AD-7). Une seule
 // définition : le proxy (`src/lib/supabase/proxy.ts`), la garde
 // (`src/server/garde`), la connexion et la déconnexion les lisent ici.
@@ -71,4 +73,48 @@ export function estPageNouveauMotDePasse(chemin: string): boolean {
  */
 export function estPageProtegee(chemin: string): boolean {
   return estPageInterne(chemin) || estPageNouveauMotDePasse(chemin);
+}
+
+// ---------------------------------------------------------------------------
+// Suivi du rôle dans le menu (story 3.3 ; FR-22)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cookie lisible par la page, posé par le proxy à chaque page protégée
+ * ouverte : le rôle relu dans `profils` pour cette page (`collaborateur` ou
+ * `administrateur`, rien de secret). Le menu latéral, qui n'est pas rendu de
+ * nouveau à chaque navigation, le compare au rôle avec lequel il a été
+ * rendu et se recharge s'ils diffèrent (`SuiviRole`).
+ *
+ * Simple signal d'affichage : jamais lu par le serveur, jamais une
+ * protection. La page, la garde (`exigerAdministrateur()`) et la base
+ * vérifient elles-mêmes le rôle.
+ */
+export const COOKIE_ROLE = "nova_role";
+
+/**
+ * Le rôle écrit dans le cookie `nova_role` de `document.cookie`, ou `null`
+ * s'il est absent ou n'est pas un rôle connu.
+ */
+export function lireCookieRole(cookies: string): Role | null {
+  for (const morceau of cookies.split(";")) {
+    const egal = morceau.indexOf("=");
+    if (egal === -1 || morceau.slice(0, egal).trim() !== COOKIE_ROLE) continue;
+    return roleDuCookie(morceau.slice(egal + 1));
+  }
+  return null;
+}
+
+/** Le rôle d'une valeur du cookie `nova_role`, ou `null` si ce n'est pas un rôle connu. */
+export function roleDuCookie(valeur: string | undefined): Role | null {
+  const texte = valeur?.trim() ?? "";
+  return (ROLES as readonly string[]).includes(texte) ? (texte as Role) : null;
+}
+
+/**
+ * Vrai si le menu doit être rechargé : le cookie donne un rôle, différent de
+ * celui avec lequel le menu a été rendu. Sans cookie lisible, rien ne change.
+ */
+export function roleAChange(roleDuCookie: Role | null, roleDuMenu: Role): boolean {
+  return roleDuCookie !== null && roleDuCookie !== roleDuMenu;
 }

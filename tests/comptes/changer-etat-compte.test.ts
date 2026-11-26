@@ -242,7 +242,8 @@ describe("RM-7 : réservée aux administrateurs", () => {
     await expect(desactiver(ID_SOPHIE)).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
     expect(simulation.updateUserById).not.toHaveBeenCalled();
-    expect(refresh).not.toHaveBeenCalled();
+    // La page est recalculée : S1, menu sans Administration (story 3.3).
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("sans session : renvoi vers la connexion, rien n'est changé", async () => {
@@ -257,6 +258,8 @@ describe("RM-7 : réservée aux administrateurs", () => {
     simulation.pannesRpc.modifier_compte = { data: null, error: { code: "NV202", message: "Accès refusé" } };
     await expect(desactiver(ID_KARIM)).resolves.toMatchObject({ ok: false, code: "ACCES_REFUSE" });
     expect(simulation.updateUserById).not.toHaveBeenCalled();
+    // Rétrogradé ou désactivé entre la garde et la base : la page recalculée montre S1.
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });
 

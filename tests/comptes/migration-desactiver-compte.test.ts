@@ -168,8 +168,12 @@ describe("retablir_compte (retour arrière quand Supabase Auth échoue)", () => 
 });
 
 describe("codes de refus", () => {
-  it("NV203 et NV204 ne sont pris par aucune autre migration, sauf NV204 (même sens : compte introuvable) par reinitialiser_mdp (story 3.5)", () => {
-    const autres = readdirSync(DOSSIER).filter((f) => f.endsWith(".sql") && f !== FICHIERS[0]);
+  it("NV203 et NV204 ne sont pris par aucune autre migration, sauf NV204 (même sens : compte introuvable) par reinitialiser_mdp (story 3.5) ; modifier_compte remplacée par la story 3.3 garde les deux", () => {
+    // La nouvelle `modifier_compte` (story 3.3) : mêmes codes, même sens
+    // (vérifiée par `migration-modifier-compte.test.ts`).
+    const autres = readdirSync(DOSSIER).filter(
+      (f) => f.endsWith(".sql") && f !== FICHIERS[0] && f !== "20261126090000_modifier_compte.sql",
+    );
     for (const fichier of autres) {
       const contenu = readFileSync(join(DOSSIER, fichier), "utf8").toLowerCase();
       expect(contenu, fichier).not.toContain("'nv203'");

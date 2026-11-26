@@ -5,10 +5,15 @@ import { z } from "zod";
 import { journaliser, type DetailsJournal } from "@/server/journal";
 import { creerClientSecret } from "@/server/supabase-secret";
 import { nouveauCodeSupport } from "@/shared/code-support";
-import type { Role } from "@/shared/constantes";
+import { ROLES, type Role } from "@/shared/constantes";
 import { MESSAGES_ACCES_REFUSE, MESSAGES_COMPTE, MESSAGES_PARAMETRES, resumeErreurs } from "@/shared/messages";
 import { echec, succes, type ErreursChamps, type Reponse } from "@/shared/reponse";
-import { validerCompte, validerEtatCompte, validerReinitialisation } from "@/shared/schemas/compte";
+import {
+  validerCompte,
+  validerEtatCompte,
+  validerModificationCompte,
+  validerReinitialisation,
+} from "@/shared/schemas/compte";
 import { validerParametres, type DonneesParametres } from "@/shared/schemas/parametres";
 
 // Comptes internes et informations générales (AD-6, AD-9, AD-13).
@@ -30,6 +35,10 @@ import { validerParametres, type DonneesParametres } from "@/shared/schemas/para
 // Réinitialisation du mot de passe (story 3.5) : `reinitialiserMotDePasse`,
 // la base d'abord (`reinitialiser_mdp`), puis le mot de passe dans Supabase
 // Auth, sans retour arrière.
+//
+// Modification du nom ou du rôle (story 3.3) : `modifierCompte`, par la même
+// fonction SQL `modifier_compte` (règle du dernier administrateur), sans
+// aucun appel à Supabase Auth (le rôle n'est que dans `profils`, AD-7).
 //
 // Jamais de mot de passe dans le journal ni dans les messages d'erreur.
 
@@ -255,10 +264,24 @@ const REFUS_AUTEUR = "NV202";
 const REFUS_DERNIER_ADMINISTRATEUR = "NV203";
 const REFUS_COMPTE_INTROUVABLE = "NV204";
 
-const schemaModification = z.object({
+/**
+ * Réponse de `modifier_compte` lue par la désactivation et la réactivation :
+ * seulement ce dont elles ont besoin, commun à la fonction de la story 3.4 et
+ * à celle de la story 3.3 (qui ajoute `role`, `actif` et `ancien_role`). Une
+ * base où la migration 3.3 n'est pas encore passée ne casse donc pas la
+ * désactivation.
+ */
+const schemaModificationEtat = z.object({
   nom: z.string(),
   email: z.string(),
   change: z.boolean(),
+});
+
+/** Réponse complète de `modifier_compte` (story 3.3). */
+const schemaModification = schemaModificationEtat.extend({
+  role: z.enum(ROLES),
+  actif: z.boolean(),
+  ancien_role: z.enum(ROLES),
 });
 
 /** Compte après une désactivation ou une réactivation. */
@@ -328,7 +351,7 @@ export async function changerEtatCompte(
     return erreurImprevue(messagePanne, { action, etape: "modifier_compte", code_base: refus, compte_id: id });
   }
 
-  const lu = schemaModification.safeParse(reponseBase);
+  const lu = schemaModificationEtat.safeParse(reponseBase);
   if (!lu.success) {
     // Réponse illisible : on ne sait pas si le profil a changé, donc rien
     // n'est remis. Un nouvel essai resynchronise Auth (branche suivante).
@@ -383,6 +406,110 @@ async function bloquerDansAuth(client: ClientSecret, id: string, actif: boolean)
   } catch {
     return "injoignable";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Modification du nom ou du rôle (story 3.3 ; FR-22, FR-25, RM-9)
+// ---------------------------------------------------------------------------
+
+/** Refus de `profils` pour un nom ou un rôle hors des contraintes (code 23514). */
+const REFUS_CONTRAINTE = "23514";
+
+/** Compte après une modification du nom ou du rôle. */
+export type CompteModifie = {
+  id: string;
+  nom: string;
+  email: string;
+  /** Rôle en place après l'appel. */
+  role: Role;
+  /** État en place : la modification ne le change pas. */
+  actif: boolean;
+  /** Faux si le nom et le rôle étaient déjà ceux demandés : rien n'a été écrit. */
+  change: boolean;
+};
+
+/**
+ * Modifie le nom et le rôle du compte `compteId` (FR-22). L'email n'est
+ * jamais modifié ; un compte désactivé le reste.
+ *
+ * 1. Saisie vérifiée par le schéma partagé (mêmes règles du nom qu'à la
+ *    création) : `VALIDATION` sans aucun appel.
+ * 2. La base, par `modifier_compte` : elle seule tient la règle du dernier
+ *    administrateur actif (RM-9, AD-10) et revérifie que `auteur` est un
+ *    administrateur actif. Refus : `CONFLIT` (dernier administrateur,
+ *    message exact, rien ne change), `ACCES_REFUSE` (auteur), `INTROUVABLE`,
+ *    `VALIDATION` (contraintes de `profils`, 23514). Aucun appel à Supabase
+ *    Auth : le rôle n'est que dans `profils` (AD-7).
+ * 3. Rôle changé : `role_modifie` au journal (compte, email, ancien et
+ *    nouveau rôle, auteur). Un simple changement de nom n'y est pas écrit,
+ *    ni une modification qui ne changeait rien.
+ *
+ * `auteur` : identifiant de l'administrateur, déjà vérifié par
+ * `exigerAdministrateur()`.
+ */
+export async function modifierCompte(
+  saisie: unknown,
+  { auteur }: { auteur: string },
+): Promise<Reponse<CompteModifie>> {
+  const validation = validerModificationCompte(saisie);
+  if (!validation.ok) return echecValidation(validation.champs);
+  const { compteId: id, nom: nomVoulu, role: roleVoulu } = validation.donnees;
+
+  const messagePanne = MESSAGES_COMPTE.modificationImpossible;
+  const action = "modifier_compte";
+
+  const client = clientSecret();
+  if (!client) return echec("ERREUR_INTERNE", MESSAGE_CLES_ABSENTES);
+
+  let refus: { code: string; message: string } | null = null;
+  let reponseBase: unknown = null;
+  try {
+    const { data, error } = await client
+      .rpc("modifier_compte", { p_auteur: auteur, p_compte: id, p_nom: nomVoulu, p_role: roleVoulu })
+      .abortSignal(AbortSignal.timeout(DELAI_MS));
+    if (error) refus = { code: error.code || "inconnu", message: error.message ?? "" };
+    else reponseBase = data;
+  } catch {
+    refus = { code: "injoignable", message: "" };
+  }
+
+  if (refus?.code === REFUS_DERNIER_ADMINISTRATEUR) return echec("CONFLIT", MESSAGES_COMPTE.dernierAdministrateur);
+  if (refus?.code === REFUS_AUTEUR) return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+  if (refus?.code === REFUS_COMPTE_INTROUVABLE) return echec("INTROUVABLE", messagePanne);
+  // Le schéma partagé vérifie déjà le nom et le rôle : seul un écart de
+  // lecture entre lui et la base mène ici. Le nom, déjà non vide, est alors
+  // trop long. Toute autre contrainte est une panne (code court au journal).
+  if (refus?.code === REFUS_CONTRAINTE && refus.message.includes("profils_nom_check")) {
+    return echecValidation({ nom: MESSAGES_COMPTE.nomTropLong });
+  }
+  if (refus?.code === REFUS_CONTRAINTE && refus.message.includes("profils_role_check")) {
+    return echecValidation({ role: MESSAGES_COMPTE.roleInconnu });
+  }
+  if (refus) {
+    return erreurImprevue(messagePanne, { action, etape: "modifier_compte", code_base: refus.code, compte_id: id });
+  }
+
+  const lu = schemaModification.safeParse(reponseBase);
+  if (!lu.success) {
+    return erreurImprevue(messagePanne, {
+      action,
+      etape: "modifier_compte",
+      code_base: "reponse_inattendue",
+      compte_id: id,
+    });
+  }
+  const { nom, email, role, actif, change, ancien_role: ancienRole } = lu.data;
+
+  if (change && ancienRole !== role) {
+    await journaliser("info", "role_modifie", {
+      compte_id: id,
+      email,
+      ancien_role: ancienRole,
+      nouveau_role: role,
+      auteur,
+    });
+  }
+  return succes({ id, nom, email, role, actif, change });
 }
 
 // ---------------------------------------------------------------------------

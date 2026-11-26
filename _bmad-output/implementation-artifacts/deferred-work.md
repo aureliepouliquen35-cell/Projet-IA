@@ -101,3 +101,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-reinitialiser-mot-de-passe-collegue.md`
   summary: Donner un délai maximal aux appels de l'API d'administration de Supabase Auth (`createUser`, `updateUserById`, `deleteUser`).
   evidence: Les appels rpc ont `DELAI_MS`, pas ceux d'Auth dans `src/server/admin/index.ts` ; un Auth qui ne répond pas laisse la fenêtre bloquée en envoi.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-modifier-nom-role-compte.md`
+  summary: Exécuter la vraie fonction SQL `modifier_compte` dans un test automatique (dernier administrateur sur un changement de rôle, rien changé, appel avec `p_actif` seul de la 3.4, refus 23514).
+  evidence: Les tests lisent le texte SQL et une simulation JavaScript (`tests/aides/supabase-connexion.ts`) ; si les deux divergent, tout reste vert. Pas de Postgres local ni de compte administrateur de test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-modifier-nom-role-compte.md`
+  summary: Tester la sélection après un refus dans la fenêtre « Modifier » (encadré, champ Nom, liste Rôle).
+  evidence: Vitest tourne en `node` sans DOM ; seuls les compteurs du réducteur sont vérifiés, comme pour les fenêtres des stories 3.2 et 3.5.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-modifier-nom-role-compte.md`
+  summary: Parcours e2e côté administrateur de la story 3.3 (fenêtre « Modifier », dernier administrateur, rétrogradation dans une autre session puis menu sans Administration et S1).
+  evidence: `tests/e2e/administration.spec.ts` ne couvre que le collaborateur ; même besoin d'un compte administrateur de test que le report de la 3.1.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-modifier-nom-role-compte.md`
+  summary: Écrire les événements de comptes (`role_modifie`, et ceux des stories 3.2, 3.4, 3.5) dans la même transaction que la modification.
+  evidence: `journaliser()` est appelé après le retour de la fonction SQL et avale ses erreurs ; un délai dépassé après l'écriture laisse un changement de rôle sans trace et affiche « n'a pas pu être modifié ».

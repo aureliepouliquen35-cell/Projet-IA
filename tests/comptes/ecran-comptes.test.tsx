@@ -28,6 +28,7 @@ import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
 import PageComptes, { metadata } from "@/app/(interne)/admin/comptes/page";
 import { EcranAccesRefuse } from "@/components/ecran-acces-refuse";
 import { SectionAdministration } from "@/components/interne/section-administration";
+import { SuiviRole } from "@/components/interne/suivi-role";
 import {
   EtatComptesErreur,
   LIGNES_SQUELETTE_COMPTES,
@@ -87,9 +88,21 @@ describe("section « Administration » du menu", () => {
     expect(await rendreSection()).not.toContain("aria-current");
   });
 
-  it("collaborateur : rien, ni titre, ni lien", async () => {
+  it("collaborateur : rien, ni titre, ni lien (seulement le suivi du rôle, qui n'affiche rien)", async () => {
     simulation.session.id = ID_KARIM;
-    await expect(SectionAdministration()).resolves.toBeNull();
+    expect(await rendreSection()).toBe("");
+  });
+
+  it("suivi du rôle rendu pour les deux rôles, avec le rôle relu dans profils (story 3.3)", async () => {
+    type Element = { type: unknown; props: { role?: string; children?: Element[] } };
+    const administrateur = (await SectionAdministration()) as unknown as Element;
+    const suivi = administrateur.props.children![0];
+    expect(suivi.type).toBe(SuiviRole);
+    expect(suivi.props.role).toBe("administrateur");
+    simulation.session.id = ID_KARIM;
+    const collaborateur = (await SectionAdministration()) as unknown as Element;
+    expect(collaborateur.type).toBe(SuiviRole);
+    expect(collaborateur.props.role).toBe("collaborateur");
   });
 
   it("administrateur rétrogradé : la section disparaît au rendu suivant du menu (chargement complet ou rafraîchissement)", async () => {
@@ -103,7 +116,9 @@ describe("section « Administration » du menu", () => {
     expect(menu).toMatch(/<Suspense fallback=\{null\}>\s*<SectionAdministration \/>\s*<\/Suspense>\s*<\/nav>/);
     expect(menu.indexOf("ADRESSE_NOUVELLE_DEMANDE} icone")).toBeLessThan(menu.indexOf("<SectionAdministration />"));
     const section = readFileSync(join(process.cwd(), "src/components/interne/section-administration.tsx"), "utf8");
-    expect(section).toMatch(/await connection\(\);\s*if \(!\(await exigerAdministrateur\(\)\)\) return null;/);
+    expect(section).toMatch(
+      /await connection\(\);\s*const \{ role \} = await exigerUtilisateur\(\);\s*const suivi = <SuiviRole role=\{role\} \/>;\s*if \(role !== "administrateur"\) return suivi;/,
+    );
   });
 });
 
@@ -126,8 +141,8 @@ describe("écran A1 « Comptes »", () => {
     const html = await rendreContenu();
     const lignes = [...html.matchAll(/<tr data-slot="ligne-compte"[^>]*>([\s\S]*?)<\/tr>/g)].map(([, ligne]) => texteDe(ligne));
     expect(lignes).toEqual([
-      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé Réinitialiser le mot de passe Réactiver`,
-      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif Réinitialiser le mot de passe Désactiver`,
+      `Karim Benali ${EMAIL_KARIM} Collaborateur Désactivé Modifier Réinitialiser le mot de passe Réactiver`,
+      `Sophie Martin ${EMAIL_SOPHIE} Administrateur Actif Modifier Réinitialiser le mot de passe Désactiver`,
     ]);
     expect(html).toMatch(/<th scope="row"[^>]*>Karim Benali<\/th>/);
   });
@@ -143,16 +158,20 @@ describe("écran A1 « Comptes »", () => {
     expect(html).toMatch(/<td[^>]*>Actif<\/td>/);
   });
 
-  it("bouton « Créer un compte » à droite du titre (story 3.2) ; Actions : « Réinitialiser le mot de passe » (3.5), puis « Désactiver » ou « Réactiver » (3.4)", async () => {
+  it("bouton « Créer un compte » à droite du titre (story 3.2) ; Actions : « Modifier » (3.3), « Réinitialiser le mot de passe » (3.5), puis « Désactiver » ou « Réactiver » (3.4)", async () => {
     const html = await rendreContenu();
     expect(html).toMatch(/<h1[^>]*>Comptes<\/h1><button[^>]*data-slot="bouton-creer-compte"[^>]*>[\s\S]*?Créer un compte<\/button>/);
-    // « Créer un compte », puis deux boutons par ligne.
-    expect(html.match(/<button/g)).toHaveLength(5);
+    // « Créer un compte », puis trois boutons par ligne.
+    expect(html.match(/<button/g)).toHaveLength(7);
+    expect(html.match(/data-slot="modifier-compte"/g)).toHaveLength(2);
     expect(html.match(/data-slot="reinitialiser-mot-de-passe"/g)).toHaveLength(2);
     expect(html.match(/data-slot="desactiver"/g)).toHaveLength(1);
     expect(html.match(/data-slot="reactiver"/g)).toHaveLength(1);
-    // « Modifier » : story 3.3.
-    expect(texteDe(html)).not.toMatch(/Modifier/);
+    // « Modifier » en premier sur chaque ligne.
+    for (const ligne of html.split('data-slot="ligne-compte"').slice(1)) {
+      expect(ligne.indexOf('data-slot="modifier-compte"')).toBeGreaterThan(0);
+      expect(ligne.indexOf('data-slot="modifier-compte"')).toBeLessThan(ligne.indexOf('data-slot="reinitialiser-mot-de-passe"'));
+    }
   });
 
   it("ni mot de passe, ni empreinte", async () => {

@@ -20,7 +20,8 @@ import { echec, type Reponse } from "@/shared/reponse";
 //
 // - Elle commence par `exigerAdministrateur()` (AD-7) : sans session, renvoi
 //   vers la connexion ; collaborateur, `ACCES_REFUSE`, sans aucun appel à
-//   Supabase pour modifier quoi que ce soit.
+//   Supabase pour modifier quoi que ce soit. Tout `ACCES_REFUSE` recalcule
+//   la page (`refresh()`, story 3.3) : S1, menu sans Administration.
 // - Le changement passe par `changerEtatCompte()` de `src/server/admin`,
 //   seul module qui tient la clé secrète : saisie vérifiée (Zod), base
 //   d'abord (`modifier_compte`, qui tient la règle du dernier administrateur
@@ -38,7 +39,12 @@ import { echec, type Reponse } from "@/shared/reponse";
 export async function actionChangerEtatCompte(saisie: unknown): Promise<Reponse<EtatCompteModifie>> {
   return executerAction(async () => {
     const administrateur = await exigerAdministrateur();
-    if (!administrateur) return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+    if (!administrateur) {
+      // Rétrogradé (ou collaborateur) : la page recalculée montre S1 et le
+      // menu sans la section Administration (story 3.3).
+      refresh();
+      return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+    }
 
     const { compteId, actif } = lireSaisie(saisie);
     const reponse = await changerEtatCompte(compteId, actif, { auteur: administrateur.id });
@@ -55,8 +61,9 @@ export async function actionChangerEtatCompte(saisie: unknown): Promise<Reponse<
         return echec("ERREUR_INTERNE", message, { codeSupport });
       }
       // Compte introuvable (supprimé ne se peut pas, identifiant inconnu) :
-      // le tableau recalculé montre l'état réel.
-      if (reponse.code === "INTROUVABLE") refresh();
+      // le tableau recalculé montre l'état réel. Auteur refusé par la base
+      // (rétrogradé ou désactivé entre-temps) : la page recalculée montre S1.
+      if (reponse.code === "INTROUVABLE" || reponse.code === "ACCES_REFUSE") refresh();
       return reponse;
     }
 

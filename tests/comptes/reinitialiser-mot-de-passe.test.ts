@@ -245,6 +245,15 @@ describe("RM-7 : réservée aux administrateurs", () => {
     expect(simulation.creerClientSecret).not.toHaveBeenCalled();
     expect(simulation.updateUserById).not.toHaveBeenCalled();
     expect(simulation.comptes.get(EMAIL_SOPHIE)!.motDePasse).toBe(MOT_DE_PASSE_SOPHIE);
+    // La page est recalculée : S1, menu sans Administration (story 3.3).
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("auteur refusé par la base pendant l'action (NV202) : ACCES_REFUSE, page recalculée", async () => {
+    simulation.pannesRpc.reinitialiser_mdp = { data: null, error: { code: "NV202", message: "Accès refusé" } };
+    await expect(reinitialiser(ID_KARIM)).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.updateUserById).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("sans session : renvoi vers la connexion, rien n'est changé", async () => {

@@ -30,8 +30,10 @@ import paquet from "../../../package.json";
 // La pastille, la section Administration et la personne connectée lisent
 // les cookies : elles sont sous `<Suspense>` (Cache Components) ; le reste
 // du menu s'affiche tout de suite. Le menu n'est pas relu quand on passe
-// d'une page interne à l'autre : la pastille et la section Administration
-// sont justes au plus tard au rafraîchissement (FR-14).
+// d'une page interne à l'autre : la pastille est juste au plus tard au
+// rafraîchissement (FR-14). La section Administration, elle, suit le rôle à
+// la navigation : `SuiviRole` recharge le menu quand le rôle relu par le
+// proxy (cookie `nova_role`) n'est plus celui du menu (story 3.3, FR-22).
 //
 // L'élément actif dépend de l'adresse, inconnue d'avance sous le détail
 // d'une demande (`/demandes/[reference]`) : il est sous `<Suspense>`, avec le

@@ -16,7 +16,8 @@ import { echec, type Reponse } from "@/shared/reponse";
 //
 // - Elle commence par `exigerAdministrateur()` (AD-7) : sans session, renvoi
 //   vers la connexion ; collaborateur, `ACCES_REFUSE`, sans aucun appel à
-//   Supabase pour créer quoi que ce soit.
+//   Supabase pour créer quoi que ce soit, et la page est recalculée
+//   (`refresh()`, story 3.3) : S1, menu sans Administration.
 // - La création passe par `creerCompte()` de `src/server/admin` (AD-6), seul
 //   module qui tient la clé secrète : saisie vérifiée par le schéma partagé
 //   (AD-11, c'est elle qui fait foi), compte Auth « email confirmé » (aucun
@@ -34,7 +35,12 @@ import { echec, type Reponse } from "@/shared/reponse";
 export async function actionCreerCompte(saisie: unknown): Promise<Reponse<CompteCree>> {
   return executerAction(async () => {
     const administrateur = await exigerAdministrateur();
-    if (!administrateur) return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+    if (!administrateur) {
+      // Rétrogradé (ou collaborateur) : la page recalculée montre S1 et le
+      // menu sans la section Administration (story 3.3).
+      refresh();
+      return echec("ACCES_REFUSE", MESSAGES_ACCES_REFUSE.action);
+    }
 
     const reponse = await creerCompte(saisie, { auteur: administrateur.id });
     if (!reponse.ok) {

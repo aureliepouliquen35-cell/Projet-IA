@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { LONGUEURS_MAXIMALES, ROLES } from "@/shared/constantes";
 import { MESSAGES_COMPTE, MESSAGES_PARAMETRES } from "@/shared/messages";
-import { CHAMPS_COMPTE, validerCompte } from "@/shared/schemas/compte";
+import {
+  CHAMPS_COMPTE,
+  CHAMPS_MODIFICATION,
+  schemaCompte,
+  schemaModificationCompte,
+  validerCompte,
+  validerModificationCompte,
+} from "@/shared/schemas/compte";
 import { CHAMPS_PARAMETRES, validerParametres } from "@/shared/schemas/parametres";
 
 // Schémas de la création d'un compte (A1) et des informations générales (A3),
@@ -122,6 +129,37 @@ describe("schéma des informations générales", () => {
     expect(validerParametres({ ...PARAMETRES, emailContact: "contact @exemple.fr" })).toEqual({
       ok: false,
       champs: { emailContact: "L'email doit avoir la forme nom@exemple.fr" },
+    });
+  });
+});
+
+describe("schéma de la modification du nom ou du rôle (story 3.3)", () => {
+  const ID = "7E2A9C41-3B5D-4F68-9A0C-2D4E6F8A1B3C";
+
+  it("compte, nom et rôle ; nom nettoyé, identifiant en minuscules ; l'email n'en fait pas partie", () => {
+    expect(CHAMPS_MODIFICATION).toEqual(["compteId", "nom", "role"]);
+    expect(
+      validerModificationCompte({ compteId: ID, nom: "  Lucas Bernard ", role: "administrateur", email: "x@exemple.fr" }),
+    ).toEqual({ ok: true, donnees: { compteId: ID.toLowerCase(), nom: "Lucas Bernard", role: "administrateur" } });
+  });
+
+  it("mêmes règles et mêmes messages du nom et du rôle qu'à la création (schéma partagé)", () => {
+    expect(schemaModificationCompte.shape.nom).toBe(schemaCompte.shape.nom);
+    expect(schemaModificationCompte.shape.role).toBe(schemaCompte.shape.role);
+    expect(validerModificationCompte({ compteId: ID, nom: " ", role: "collaborateur" })).toEqual({
+      ok: false,
+      champs: { nom: MESSAGES_COMPTE.nomObligatoire },
+    });
+    expect(validerModificationCompte({ compteId: ID, nom: "a".repeat(LONGUEURS_MAXIMALES.nom + 1), role: "x" })).toEqual({
+      ok: false,
+      champs: { nom: MESSAGES_COMPTE.nomTropLong, role: MESSAGES_COMPTE.roleInconnu },
+    });
+  });
+
+  it("compte mal désigné : refusé", () => {
+    expect(validerModificationCompte({ compteId: "pas-un-uuid", nom: "Lucas", role: "collaborateur" })).toEqual({
+      ok: false,
+      champs: { compteId: MESSAGES_COMPTE.compteInvalide },
     });
   });
 });

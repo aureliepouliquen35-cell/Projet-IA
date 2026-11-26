@@ -51,6 +51,14 @@ test("collaborateur : aucune administration dans le menu, S1 à l'adresse forcé
   // Adresse tapée : S1, dans l'espace interne, sans aucune donnée de compte.
   const reponse = await page.goto("/admin/comptes");
   expect(reponse?.ok()).toBe(true);
+
+  // Story 3.3 : à cette page protégée, le proxy a posé le rôle relu dans
+  // `profils` (signal d'affichage du menu, lisible par la page, jamais une
+  // protection). Pas juste après la connexion : la page « Demandes » y est
+  // rendue dans la réponse de la Server Function, sans passer par le proxy.
+  const role = (await page.context().cookies()).find((cookie) => cookie.name === "nova_role");
+  expect(role?.value).toBe("collaborateur");
+  expect(role?.httpOnly).toBe(false);
   await expect(page.getByRole("heading", { level: 1, name: S1 })).toBeVisible();
   await expect(page).toHaveURL(/\/admin\/comptes$/);
   await expect(page.locator("[data-slot=menu-lateral]")).toBeVisible();
@@ -93,7 +101,7 @@ test("collaborateur : la vraie fonction SQL lister_comptes refuse un appel direc
   }
 });
 
-test("collaborateur : les vraies fonctions SQL modifier_compte et retablir_compte refusent un appel direct", async () => {
+test("collaborateur : les vraies fonctions SQL modifier_compte (état, nom, rôle) et retablir_compte refusent un appel direct", async () => {
   // Story 3.4 : exécutables par `service_role` seul. Appelées sur le compte
   // du collaborateur lui-même, avec `p_actif` vrai : même un droit donné par
   // erreur ne désactiverait personne. Demande la migration
@@ -123,10 +131,18 @@ test("collaborateur : les vraies fonctions SQL modifier_compte et retablir_compt
     expect(retablir.error?.code ?? null).toBe("42501");
     expect(retablir.data).toBeNull();
 
-    // Rien n'a changé : le profil (sa propre ligne) est toujours actif.
-    const { data: profil, error } = await supabase.from("profils").select("actif").eq("id", id).maybeSingle();
+    // Story 3.3 : la nouvelle `modifier_compte` (nom et rôle) refuse aussi.
+    // Le collaborateur essaie de se passer administrateur ; même un droit
+    // donné par erreur serait refusé par la fonction (auteur NV202). Demande
+    // la migration `20261126090000_modifier_compte.sql` sur dev.
+    const promouvoir = await supabase.rpc("modifier_compte", { p_auteur: id, p_compte: id, p_role: "administrateur" });
+    expect(promouvoir.error?.code ?? null).toBe("42501");
+    expect(promouvoir.data).toBeNull();
+
+    // Rien n'a changé : le profil (sa propre ligne) est toujours actif et collaborateur.
+    const { data: profil, error } = await supabase.from("profils").select("actif, role").eq("id", id).maybeSingle();
     expect(error).toBeNull();
-    expect(profil).toEqual({ actif: true });
+    expect(profil).toEqual({ actif: true, role: "collaborateur" });
   } finally {
     await supabase.auth.signOut({ scope: "local" });
   }

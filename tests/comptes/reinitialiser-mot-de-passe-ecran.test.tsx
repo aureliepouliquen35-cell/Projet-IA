@@ -14,6 +14,7 @@ vi.mock("@/server/actions/reinitialiser-mot-de-passe", () => ({
 }));
 // Les autres actions de la ligne ne sont pas appelées ici.
 vi.mock("@/server/actions/changer-etat-compte", () => ({ actionChangerEtatCompte: vi.fn() }));
+vi.mock("@/server/actions/modifier-compte", () => ({ actionModifierCompte: vi.fn() }));
 
 import {
   actionApresReponseReinitialisation,
@@ -95,7 +96,11 @@ describe("bouton de la ligne", () => {
       expect(ligne.indexOf("reinitialiser-mot-de-passe")).toBeLessThan(ligne.search(/data-slot="(desactiver|reactiver)"/));
     }
     expect(html).toContain('aria-label="Réinitialiser le mot de passe de Sophie Martin"');
-    expect(html).not.toMatch(/>Modifier</);
+    // « Modifier » (story 3.3) vient avant, en premier.
+    for (const ligne of lignes) {
+      expect(ligne).toContain('data-slot="modifier-compte"');
+      expect(ligne.indexOf('data-slot="modifier-compte"')).toBeLessThan(ligne.indexOf("reinitialiser-mot-de-passe"));
+    }
   });
 });
 

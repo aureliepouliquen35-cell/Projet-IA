@@ -21,20 +21,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const simulation = await vi.hoisted(async () =>
   (await import("../aides/supabase-connexion")).creerSimulationConnexion(),
 );
+const refresh = vi.hoisted(() => vi.fn());
 
 vi.mock("@/server/supabase-secret", () => ({ creerClientSecret: simulation.creerClientSecret }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: simulation.createClient }));
 vi.mock("next/headers", () => ({ cookies: simulation.cookies }));
 // `connection()` n'a de sens que pendant une vraie requête Next.js.
 vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
+// `refresh()` n'a de sens que pendant une vraie Server Function de Next.js.
+vi.mock("next/cache", () => ({ refresh }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   usePathname: () => "/admin/comptes",
+  useRouter: () => ({ refresh: () => {} }),
 }));
 
 import { ContenuComptes } from "@/app/(interne)/admin/comptes/contenu-comptes";
 import { SectionAdministration } from "@/components/interne/section-administration";
 import { createClient } from "@/lib/supabase/server";
+import { actionChangerEtatCompte } from "@/server/actions/changer-etat-compte";
+import { actionCreerCompte } from "@/server/actions/creer-compte";
+import { actionModifierCompte } from "@/server/actions/modifier-compte";
 import { actionReinitialiserMotDePasse } from "@/server/actions/reinitialiser-mot-de-passe";
 import { exigerAdministrateur } from "@/server/garde";
 import { lireComptes } from "@/server/lectures/comptes";
@@ -44,6 +51,17 @@ import { ID_KARIM, ID_SOPHIE, PROFIL_SOPHIE } from "../aides/supabase-connexion"
 
 const racine = process.cwd();
 const S1 = "Accès refusé. Cette page est réservée aux administrateurs.";
+
+/**
+ * Début de chaque Server Function d'administration (commentaires retirés) :
+ * `exigerAdministrateur()` en premier ; refusé, la page est recalculée
+ * (`refresh()`, story 3.3) avant la réponse `ACCES_REFUSE`.
+ */
+const DEBUT_ACTION_RESERVEE =
+  /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) \{\s*refresh\(\);\s*return echec\("ACCES_REFUSE"/;
+
+/** Server Functions de l'écran A1, toutes réservées aux administrateurs. */
+const ACTIONS_ADMINISTRATION = ["creer-compte.ts", "changer-etat-compte.ts", "reinitialiser-mot-de-passe.ts", "modifier-compte.ts"];
 
 function fichiers(dossier: string): string[] {
   return readdirSync(dossier).flatMap((nom) => {
@@ -61,18 +79,20 @@ beforeEach(() => {
   simulation.profils.set(ID_SOPHIE, { ...PROFIL_SOPHIE });
   // Karim, collaborateur actif, est connecté.
   simulation.session.id = ID_KARIM;
+  refresh.mockClear();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("RM-7 : un collaborateur ne voit aucune administration", () => {
   it("menu : aucune section, aucun lien ni bouton d'administration", async () => {
-    await expect(SectionAdministration()).resolves.toBeNull();
+    // Seul le suivi du rôle (story 3.3) est rendu, et il n'affiche rien.
+    expect(renderToStaticMarkup(await SectionAdministration())).toBe("");
   });
 
   it("le même menu, pour un administrateur : la section et « Comptes »", async () => {
     simulation.session.id = ID_SOPHIE;
     const section = await SectionAdministration();
-    expect(texteDe(renderToStaticMarkup(section!))).toBe("Administration Comptes");
+    expect(texteDe(renderToStaticMarkup(section))).toBe("Administration Comptes");
   });
 });
 
@@ -187,15 +207,79 @@ describe("RM-7 : réinitialiser un mot de passe est réservé aux administrateur
   });
 
   it("la Server Function commence par exigerAdministrateur ; la fonction SQL revérifie l'auteur et n'est exécutable que par service_role", () => {
-    const action = readFileSync(join(racine, "src", "server", "actions", "reinitialiser-mot-de-passe.ts"), "utf8");
-    expect(action).toMatch(
-      /executerAction\(async \(\) => \{\s*const administrateur = await exigerAdministrateur\(\);\s*if \(!administrateur\) return echec\("ACCES_REFUSE"/,
-    );
+    const action = readFileSync(join(racine, "src", "server", "actions", "reinitialiser-mot-de-passe.ts"), "utf8")
+      .replace(/\/\/.*$/gm, "");
+    expect(action).toMatch(DEBUT_ACTION_RESERVEE);
     const migration = readFileSync(join(racine, "supabase", "migrations", "20261125120000_reinitialiser_mot_de_passe.sql"), "utf8")
       .replace(/--.*$/gm, "")
       .toLowerCase();
     expect(migration).toMatch(/p\.id = p_auteur\s+and p\.actif\s+and not p\.doit_changer_mdp\s+and p\.role = 'administrateur'/);
     expect(migration).toContain("revoke execute on function public.reinitialiser_mdp(uuid, uuid, text) from authenticated;");
     expect(migration).toContain("grant execute on function public.reinitialiser_mdp(uuid, uuid, text) to service_role;");
+  });
+});
+
+describe("RM-7 : modifier le nom ou le rôle est réservé aux administrateurs (story 3.3)", () => {
+  it("collaborateur qui appelle la Server Function directement : « Accès refusé. », aucun appel, rien ne change", async () => {
+    const reponse = await actionModifierCompte({ compteId: ID_KARIM, nom: "Karim Benali", role: "administrateur" });
+    expect(reponse).toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.creerClientSecret).not.toHaveBeenCalled();
+    expect(simulation.profils.get(ID_KARIM)!.role).toBe("collaborateur");
+  });
+
+  it("rôle « administrateur » écrit dans les métadonnées de la session : toujours refusé (rôle relu dans profils)", async () => {
+    const claims = {
+      data: { claims: { sub: ID_KARIM, user_metadata: { role: "administrateur" }, app_metadata: { role: "administrateur" } } },
+      error: null,
+    } as never;
+    simulation.getClaims.mockResolvedValueOnce(claims);
+    await expect(actionModifierCompte({ compteId: ID_KARIM, nom: "Karim", role: "administrateur" })).resolves.toMatchObject({
+      code: "ACCES_REFUSE",
+    });
+    expect(simulation.profils.get(ID_KARIM)!.role).toBe("collaborateur");
+  });
+
+  it("la fonction SQL revérifie l'auteur et n'est exécutable que par service_role", () => {
+    const migration = readFileSync(join(racine, "supabase", "migrations", "20261126090000_modifier_compte.sql"), "utf8")
+      .replace(/--.*$/gm, "")
+      .toLowerCase();
+    expect(migration).toMatch(/p\.id = p_auteur\s+and p\.actif\s+and not p\.doit_changer_mdp\s+and p\.role = 'administrateur'/);
+    const signature = "public.modifier_compte(uuid, uuid, boolean, text, text)";
+    for (const role of ["public", "anon", "authenticated"]) {
+      expect(migration).toContain(`revoke execute on function ${signature} from ${role};`);
+    }
+    expect(migration).toContain(`grant execute on function ${signature} to service_role;`);
+  });
+});
+
+describe("RM-7 : un administrateur rétrogradé perd l'administration à sa prochaine action (story 3.3)", () => {
+  beforeEach(() => {
+    // Sophie, encore sur A1, vient d'être passée collaboratrice par un autre administrateur.
+    simulation.session.id = ID_SOPHIE;
+    simulation.profils.get(ID_SOPHIE)!.role = "collaborateur";
+  });
+
+  it.each([
+    ["créer un compte", () => actionCreerCompte({ nom: "Lucas Bernard", email: "lucas@exemple.fr", role: "collaborateur", motDePasseTemporaire: "Kp7mWq2xTz9aBc4d" })],
+    ["désactiver", () => actionChangerEtatCompte({ compteId: ID_KARIM, actif: false })],
+    ["réinitialiser un mot de passe", () => actionReinitialiserMotDePasse({ compteId: ID_KARIM, motDePasseTemporaire: "Kp7mWq2xTz9aBc4d" })],
+    ["modifier un compte", () => actionModifierCompte({ compteId: ID_KARIM, nom: "Karim", role: "administrateur" })],
+  ])("%s : « Accès refusé. », rien n'est appelé, et la page est recalculée (S1, menu sans Administration)", async (_, agir) => {
+    await expect(agir()).resolves.toEqual({ ok: false, code: "ACCES_REFUSE", message: "Accès refusé." });
+    expect(simulation.creerClientSecret).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("le menu recalculé n'a plus la section Administration, et la page A1 affiche S1", async () => {
+    expect(renderToStaticMarkup(await SectionAdministration())).toBe("");
+    expect(texteDe(renderToStaticMarkup(await ContenuComptes()))).toBe(`${S1} Retour aux demandes`);
+  });
+
+  it("chaque Server Function d'administration commence par exigerAdministrateur, puis refresh() avant ACCES_REFUSE", () => {
+    for (const fichier of ACTIONS_ADMINISTRATION) {
+      const source = readFileSync(join(racine, "src", "server", "actions", fichier), "utf8").replace(/\/\/.*$/gm, "");
+      expect(source, fichier).toMatch(/^"use server";/);
+      expect(source, fichier).toMatch(DEBUT_ACTION_RESERVEE);
+    }
   });
 });

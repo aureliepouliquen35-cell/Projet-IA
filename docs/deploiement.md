@@ -271,7 +271,7 @@ Une nuit en échec porte la perte possible à près de 48 h, et chaque fichier d
 
 Le dépôt est **public** : les journaux d'exécution et les artefacts le sont aussi, tout compte GitHub peut les télécharger. C'est pourquoi le fichier est chiffré, et pourquoi les deux secrets ci-dessous ne s'écrivent **nulle part ailleurs** que dans GitHub et votre gestionnaire de mots de passe : jamais dans un fichier du dépôt, un message, un ticket ou une conversation (avec un assistant d'IA compris).
 
-La restauration à partir de ce fichier viendra avec l'exploitation (story 5.1).
+Pour remettre en place les données à partir de ce fichier (essai sur dev ou vrai problème sur prod), voir [Restaurer une sauvegarde](maintenance.md#restaurer-une-sauvegarde) dans `docs/maintenance.md`.
 
 ### 1. Mot de passe de chiffrement
 
@@ -336,3 +336,5 @@ Le lendemain matin du premier lancement, puis chaque fois que vous voulez vous a
 Une fois par mois, refaites le point 1 de l'étape 5. GitHub **met en pause les tâches planifiées d'un dépôt public après 60 jours sans activité** sur le dépôt : un bandeau l'indique alors dans l'onglet *Actions*, sur la tâche *Sauvegarde de nuit*. Cliquez sur *Enable workflow*, puis relancez-la à la main (étape 4, point 2) pour ne pas attendre la nuit suivante.
 
 GitHub prévient en général par email d'un échec de tâche planifiée (la personne qui a modifié la planification en dernier) ; ne comptez pas seulement sur cet email.
+
+Cette vérification est reprise, avec celle du journal et du mot de passe de chiffrement, dans [`maintenance.md`, « Vérification mensuelle de la sauvegarde de nuit »](maintenance.md#vérification-mensuelle-de-la-sauvegarde-de-nuit).

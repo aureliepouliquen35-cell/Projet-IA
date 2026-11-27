@@ -1,0 +1,65 @@
+# Restauration d'une sauvegarde de nuit (story 5.1, AD-18, NFR-7).
+#
+# Lancée seulement à la main (onglet Actions, « Run workflow »). Télécharge
+# l'artefact chiffré choisi (ou le plus récent), le déchiffre sur la machine
+# de GitHub, puis remplace les données de la base visée en une seule
+# transaction : dev pour un essai (par défaut), prod en cas de vrai problème,
+# avec une phrase de confirmation.
+#
+# Le dépôt est public : les journaux d'exécution le sont aussi. La tâche ne
+# publie rien (aucun artefact) et n'affiche ni secret ni donnée de demandeur.
+# Mode d'emploi : docs/maintenance.md, partie « Restaurer une sauvegarde ».
+
+name: Restaurer une sauvegarde
+
+on:
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: "Base à remplacer : dev pour un essai, prod seulement en cas de vrai problème"
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+        required: true
+      sauvegarde:
+        description: "Nom de l'artefact (sauvegarde-prod-AAAA-MM-JJ-HHMM), obligatoire pour prod ; vide (dev seulement) : la plus récente"
+        type: string
+        required: false
+        default: ""
+      confirmation:
+        description: "Pour prod seulement : recopiez RESTAURER LA PRODUCTION"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: restauration
+  cancel-in-progress: false
+
+jobs:
+  restaurer:
+    name: Restaurer une sauvegarde
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Télécharger, déchiffrer et restaurer
+        env:
+          RESTAURATION_CIBLE: ${{ inputs.cible }}
+          RESTAURATION_SAUVEGARDE: ${{ inputs.sauvegarde }}
+          RESTAURATION_CONFIRMATION: ${{ inputs.confirmation }}
+          RESTAURATION_URL_BASE_DEV: ${{ secrets.RESTAURATION_URL_BASE_DEV }}
+          SAUVEGARDE_URL_BASE_PROD: ${{ secrets.SAUVEGARDE_URL_BASE_PROD }}
+          SAUVEGARDE_MOT_DE_PASSE: ${{ secrets.SAUVEGARDE_MOT_DE_PASSE }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/sauvegarde/restaurer.sh

@@ -139,3 +139,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-3-modifier-informations-contact.md`
   summary: Tester avec un vrai rendu interactif le formulaire A3 (envoi, sélection de l'encadré après un refus, toast).
   evidence: Le câblage de InformationsGeneralesFormulaire n'est vérifié que sur le texte du fichier ; vitest n'a pas de DOM dans le projet (même report qu'en 4.1 et 4.2).
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-restaurer-sauvegarde.md`
+  summary: Faire tourner automatiquement le SQL de restauration (vider, recharger, comptage NV001, annulation) sur un vrai Postgres qui a les migrations.
+  evidence: Les tests de restaurer.sh utilisent un faux psql ; les droits du rôle postgres sur auth.*, session_replication_role et le format réel de l'export ne sont éprouvés qu'à l'essai manuel sur dev (medium, non vérifié). Il faudrait un banc Postgres (service dans GitHub Actions ou supabase start).

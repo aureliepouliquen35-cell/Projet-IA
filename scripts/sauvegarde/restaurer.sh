@@ -13,8 +13,9 @@
 #   3. télécharge l'artefact choisi (ou la plus récente sauvegarde non
 #      expirée), le déchiffre dans un dossier temporaire effacé à la fin, même
 #      en cas d'échec, et vérifie que c'est une sauvegarde de Nova ;
-#   4. remplace les données de la base visée en une seule transaction : vide
-#      les tables présentes dans la sauvegarde, recharge leurs lignes, puis
+#   4. remplace les données de Nova (schémas public et auth) dans la base
+#      visée, en une seule transaction : vide les tables de Nova présentes
+#      dans la sauvegarde, recharge leurs lignes, puis
 #      compare le nombre de demandes et de lignes d'historique avec la
 #      sauvegarde. Au moindre écart ou erreur, tout est annulé.
 #
@@ -223,17 +224,23 @@ choisir_sauvegarde() { # <nom demandé, ou vide>
 
 # Lit donnees.sql et prépare le chargement :
 #   - donnees-chargees.sql : l'export sans les lignes \restrict/\unrestrict
-#     (refusées par un psql ancien) ni les tables d'historique des migrations :
-#     celle de nos migrations (supabase_migrations.*), qui décrit la structure
-#     venue des migrations de la base visée, et celles des services de
-#     Supabase (auth.schema_migrations, storage.migrations,
-#     realtime.schema_migrations, supabase_functions.migrations), dont la
-#     version peut différer entre dev et prod ;
+#     (refusées par un psql ancien), réduit aux données de Nova : les schémas
+#     public (demandes, historique, réglages, journal…) et auth (comptes de
+#     connexion), tables et séquences. Tout le reste est laissé tel quel dans
+#     la base visée : l'export de la CLI contient aussi les schémas gérés par
+#     Supabase (storage, cron, net, supabase_functions…), que Nova n'utilise
+#     pas et que le rôle postgres n'a pas le droit de vider (code 42501).
+#     L'historique des migrations du service des comptes (auth.schema_migrations)
+#     est exclu aussi : sa version peut différer entre dev et prod ;
 #   - tables.txt : chaque table chargée et son nombre de lignes.
 # Lecture avec un état (dans ou hors d'un bloc COPY, fin sur la ligne « \. ») :
 # une ligne de données qui commence par « COPY » n'est pas prise pour une table.
 lire_donnees() {
   awk -v donnees="$TEMPORAIRE/donnees-chargees.sql" -v liste="$TEMPORAIRE/tables.txt" '
+    # Une table ou une séquence de Nova (nom sans guillemets).
+    function de_nova(nom) {
+      return (nom ~ /^(public|auth)\.[^.]+$/ && nom != "auth.schema_migrations")
+    }
     dans {
       if ($0 == "\\.") {
         dans = 0
@@ -248,10 +255,17 @@ lire_donnees() {
     /^COPY [^ ]+ .*FROM stdin;$/ {
       dans = 1; lignes = 0; table = $2
       nom = table; gsub(/"/, "", nom)
-      garder = (nom !~ /^supabase_migrations\./ &&
-        nom != "auth.schema_migrations" && nom != "storage.migrations" &&
-        nom != "realtime.schema_migrations" && nom != "supabase_functions.migrations")
+      garder = de_nova(nom)
       if (garder) print > donnees
+      next
+    }
+    # Remise à jour d une séquence : seulement celles de Nova.
+    /^SELECT pg_catalog\.setval\(/ {
+      sequence = $0
+      sub("^SELECT pg_catalog[.]setval[(]\047", "", sequence)
+      sub("\047.*$", "", sequence)
+      gsub(/"/, "", sequence)
+      if (de_nova(sequence)) print > donnees
       next
     }
     { print > donnees }
@@ -305,6 +319,38 @@ SQL
   } >"$TEMPORAIRE/restauration.sql"
 }
 
+# Décrit l'instruction de restauration.sql à la ligne donnée, d'après le SQL
+# que le script a lui-même écrit : jamais le texte de la ligne ni un message
+# de psql, seulement des noms de table, de séquence ou de réglage.
+etape() { # <numéro de ligne>
+  awk -v cible="$1" '
+    function nom(texte) { gsub(/"/, "", texte); return texte }
+    function fin(libelle) { print libelle; trouve = 1; exit }
+    dans {
+      if (NR == cible) fin("chargement de la table " table)
+      if ($0 == "\\.") dans = 0
+      next
+    }
+    /^COPY [^ ]+ .*FROM stdin;$/ {
+      dans = 1; table = nom($2)
+      if (NR == cible) fin("chargement de la table " table)
+      next
+    }
+    /^do \$\$$/ { controle = 1 }
+    NR == cible {
+      if (controle) fin("contrôle du nombre de demandes et de lignes d historique")
+      if ($0 ~ /^delete from [^ ]+;$/) { t = $3; sub(/;$/, "", t); fin("vidage de la table " nom(t)) }
+      if ($0 ~ /^SELECT pg_catalog\.setval\(/) {
+        s = $0; sub("^SELECT pg_catalog[.]setval[(]\047", "", s); sub("\047.*$", "", s)
+        fin("remise à jour de la séquence " nom(s))
+      }
+      if (match($0, /^[Ss][Ee][Tt] [a-z_]+/)) fin("réglage " substr($0, 5, RLENGTH - 4))
+      fin("instruction n° " NR " de la restauration")
+    }
+    END { if (!trouve) print "instruction n° " cible " de la restauration" }
+  ' "$TEMPORAIRE/restauration.sql" | sed "s/d historique/d'historique/"
+}
+
 # Charge le tout en une seule transaction. En cas d'erreur, psql s'arrête et
 # la transaction est annulée : la base visée reste comme avant.
 charger() { # <adresse> <cible>
@@ -322,20 +368,28 @@ charger() { # <adresse> <cible>
 
   # Avec VERBOSITY=sqlstate, psql n'écrit que « ERROR:  <code> » : on garde
   # seulement le code, jamais le reste (qui pourrait citer une ligne).
-  local code
-  code="$(grep -oE 'ERROR: +[0-9A-Z]{5}$' "$TEMPORAIRE/erreurs.txt" | head -n 1 | grep -oE '[0-9A-Z]{5}$' || true)"
+  # psql préfixe l'erreur par « psql:<fichier>:<ligne>: » : la ligne donne
+  # l'étape en cause.
+  local erreur code ligne lieu=""
+  erreur="$(grep -oE ':[0-9]+: ERROR: +[0-9A-Z]{5}$' "$TEMPORAIRE/erreurs.txt" | head -n 1 || true)"
+  if [[ -z "$erreur" ]]; then
+    erreur="$(grep -oE 'ERROR: +[0-9A-Z]{5}$' "$TEMPORAIRE/erreurs.txt" | head -n 1 || true)"
+  fi
+  code="$(grep -oE '[0-9A-Z]{5}$' <<<"$erreur" || true)"
+  ligne="$(grep -oE '^:[0-9]+:' <<<"$erreur" | tr -d ':' || true)"
+  [[ -z "$ligne" ]] || lieu=", à l'étape « $(etape "$ligne") »"
   local annulee="la restauration est annulée, la base $cible est inchangée"
   case "$code" in
     "$CODE_COMPTES")
       arreter "Après le chargement, la base $cible ne compte pas $demandes demandes et $evenements lignes d'historique comme la sauvegarde : $annulee. Notez l'heure et le numéro de l'exécution pour le support ($AIDE)." ;;
     42P01 | 42703)
-      arreter "Une table ou une colonne de la sauvegarde manque dans la base $cible (code $code) : $annulee. Appliquez d'abord les migrations (docs/deploiement.md, partie « Installation », étape 3), puis relancez." ;;
+      arreter "Une table ou une colonne de la sauvegarde manque dans la base $cible (code $code$lieu) : $annulee. Appliquez d'abord les migrations (docs/deploiement.md, partie « Installation », étape 3), puis relancez." ;;
     42501)
-      arreter "Droits insuffisants sur la base $cible (code $code) : $annulee. Vérifiez que l'adresse utilise bien l'utilisateur postgres.<identifiant du projet> ($AIDE)." ;;
+      arreter "Droits insuffisants sur la base $cible (code $code$lieu) : $annulee. L'adresse n'est pas en cause (la connexion a réussi) : notez cette étape, l'heure et le numéro de l'exécution pour le support ($AIDE)." ;;
     "")
       arreter "La restauration s'est interrompue (connexion perdue ?) : $annulee. Relancez ; si cela se reproduit, notez l'heure et le numéro de l'exécution pour le support ($AIDE)." ;;
     *)
-      arreter "La restauration a échoué (code d'erreur PostgreSQL $code) : $annulee. Notez ce code, l'heure et le numéro de l'exécution pour le support ($AIDE)." ;;
+      arreter "La restauration a échoué (code d'erreur PostgreSQL $code$lieu) : $annulee. Notez ce code, cette étape, l'heure et le numéro de l'exécution pour le support ($AIDE)." ;;
   esac
 }
 

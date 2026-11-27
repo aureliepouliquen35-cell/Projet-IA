@@ -125,7 +125,26 @@ const DONNEES_NOVA = [
   "historique-functions-initial",
   "\\.",
   "",
+  // Schémas gérés par Supabase, que l'export de la CLI contient aussi : ni
+  // vidés, ni rechargés (le rôle postgres n'en a pas le droit, code 42501).
+  'COPY "storage"."buckets" ("id", "name") FROM stdin;',
+  "\\.",
+  "",
+  'COPY "storage"."objects" ("id", "bucket_id") FROM stdin;',
+  "interne-objet-1\tinterne-seau",
+  "\\.",
+  "",
+  'COPY "cron"."job" ("jobid", "schedule") FROM stdin;',
+  "1\tinterne-planification",
+  "\\.",
+  "",
+  'COPY "net"."http_request_queue" ("id") FROM stdin;',
+  "\\.",
+  "",
   "SELECT pg_catalog.setval('\"public\".\"compteurs_seq\"', 1, false);",
+  "SELECT pg_catalog.setval('\"auth\".\"refresh_tokens_id_seq\"', 7, true);",
+  "SELECT pg_catalog.setval('\"cron\".\"jobid_seq\"', 1, true);",
+  "SELECT pg_catalog.setval('\"net\".\"http_request_queue_id_seq\"', 1, false);",
   "\\unrestrict AbCdEf0123456789xyz",
   "",
 ].join("\n");
@@ -168,6 +187,13 @@ if [[ " $* " == *" --single-transaction "* ]]; then
     table_absente) echo "psql:$fichier:3: ERROR:  42P01" >&2; exit 3 ;;
     colonne_absente) echo "psql:$fichier:9: ERROR:  42703" >&2; exit 3 ;;
     droits) echo "psql:$fichier:3: ERROR:  42501" >&2; exit 3 ;;
+    droits_reglage) echo "psql:$fichier:1: ERROR:  42501" >&2; exit 3 ;;
+    droits_sequence)
+      ligne="$(grep -n 'refresh_tokens_id_seq' "$fichier" | cut -d: -f1)"
+      echo "psql:$fichier:$ligne: ERROR:  42501" >&2; exit 3 ;;
+    droits_chargement)
+      ligne="$(grep -n '^d2' "$fichier" | cut -d: -f1)"
+      echo "psql:$fichier:$ligne: ERROR:  42501" >&2; exit 3 ;;
     coupure) echo "psql: server closed the connection unexpectedly" >&2; exit 2 ;;
   esac
   exit 0
@@ -344,7 +370,8 @@ beforeAll(() => {
   creerSauvegarde("pas-une-archive", { "texte.txt": "ceci n'est pas une archive" }, MDP_CHIFFREMENT, true);
   // Archive Nova valide, mais emballée sans chiffrement : n'importe qui peut la fabriquer.
   creerSauvegarde("non-chiffree", exports, MDP_CHIFFREMENT, false, true);
-});
+  // Une dizaine de chiffrements gpg : plus de 10 s quand toute la suite tourne.
+}, 120_000);
 
 beforeEach(() => {
   numeroEssai += 1;
@@ -410,6 +437,15 @@ describe("restaurer.sh, matrice de la spec", { timeout: 60_000 }, () => {
       expect(sql).not.toContain(table);
     }
     expect(sql).not.toContain("historique-");
+    // Seules les données de Nova (public, auth) : ni tables, ni lignes, ni
+    // séquences des schémas gérés par Supabase.
+    for (const schema of ['"storage".', '"cron".', '"net".']) {
+      expect(sql).not.toContain(schema);
+    }
+    expect(sql).not.toContain("interne-");
+    expect(sql).toContain("SELECT pg_catalog.setval('\"public\".\"compteurs_seq\"', 1, false);");
+    expect(sql).toContain("SELECT pg_catalog.setval('\"auth\".\"refresh_tokens_id_seq\"', 7, true);");
+    expect(lignes.filter((ligne) => ligne.startsWith("SELECT pg_catalog.setval("))).toHaveLength(2);
     expect(sql).not.toMatch(/^\\(un)?restrict/m);
     // Chaque bloc COPY gardé est complet : autant de fins « \. » que d'en-têtes
     // (lecture avec un état, comme le script : la ligne piège est une donnée).
@@ -630,11 +666,14 @@ describe("restaurer.sh, matrice de la spec", { timeout: 60_000 }, () => {
   });
 
   it.each([
-    ["erreur SQL au milieu du chargement", "echec_chargement", /La restauration a échoué \(code d'erreur PostgreSQL 22P02\) : la restauration est annulée, la base dev est inchangée/],
+    ["erreur SQL au milieu du chargement", "echec_chargement", /La restauration a échoué \(code d'erreur PostgreSQL 22P02, à l'étape « chargement de la table auth\.users »\) : la restauration est annulée, la base dev est inchangée/],
     ["comptes différents", "comptes_differents", /ne compte pas 3 demandes et 2 lignes d'historique comme la sauvegarde : la restauration est annulée, la base dev est inchangée/],
-    ["table absente de la base visée", "table_absente", /manque dans la base dev \(code 42P01\).*Appliquez d'abord les migrations/],
-    ["colonne absente de la base visée", "colonne_absente", /manque dans la base dev \(code 42703\).*Appliquez d'abord les migrations/],
-    ["droits insuffisants", "droits", /Droits insuffisants sur la base dev \(code 42501\) : la restauration est annulée, la base dev est inchangée/],
+    ["table absente de la base visée", "table_absente", /manque dans la base dev \(code 42P01, à l'étape « vidage de la table auth\.users »\).*Appliquez d'abord les migrations/],
+    ["colonne absente de la base visée", "colonne_absente", /manque dans la base dev \(code 42703, à l'étape « [^»]+ »\).*Appliquez d'abord les migrations/],
+    ["droits insuffisants au vidage", "droits", /Droits insuffisants sur la base dev \(code 42501, à l'étape « vidage de la table auth\.users »\) : la restauration est annulée, la base dev est inchangée\. L'adresse n'est pas en cause/],
+    ["droits insuffisants sur un réglage", "droits_reglage", /Droits insuffisants sur la base dev \(code 42501, à l'étape « réglage session_replication_role »\)/],
+    ["droits insuffisants sur une séquence", "droits_sequence", /Droits insuffisants sur la base dev \(code 42501, à l'étape « remise à jour de la séquence auth\.refresh_tokens_id_seq »\)/],
+    ["droits insuffisants au chargement", "droits_chargement", /Droits insuffisants sur la base dev \(code 42501, à l'étape « chargement de la table public\.demandes »\)/],
     ["connexion coupée", "coupure", /La restauration s'est interrompue.*la base dev est inchangée/],
   ])("%s : transaction annulée, message, aucune ligne de données affichée", (_cas, mode, message) => {
     const resultat = restaurer({ FAUX_PSQL: mode });

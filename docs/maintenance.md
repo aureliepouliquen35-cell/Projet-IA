@@ -22,11 +22,13 @@ La tâche peut viser deux bases :
 1. Elle contrôle les secrets, et pour **dev** que l'adresse vise bien un **autre projet** que prod.
 2. Elle vérifie que la base visée répond et qu'elle a les migrations de Nova (tables `demandes` et `evenements`).
 3. Elle télécharge la sauvegarde choisie, ou, sur dev seulement, la plus récente qui n'a pas expiré. Seuls comptent les artefacts de la tâche lancée sur `main` dans ce dépôt. Elle la déchiffre, vérifie qu'elle était vraiment chiffrée et que c'est bien une sauvegarde de Nova.
-4. Elle **remplace les données** de la base visée en **une seule transaction**. Elle vide les tables présentes dans la sauvegarde, comptes de connexion (`auth.users`) compris, puis recharge leurs lignes. Elle compte ensuite les demandes et les lignes d'historique : il doit y en avoir autant que dans la sauvegarde.
+4. Elle **remplace les données** de la base visée en **une seule transaction**. Elle vide les tables de Nova présentes dans la sauvegarde, comptes de connexion (`auth.users`) compris, puis recharge leurs lignes. Elle compte ensuite les demandes et les lignes d'historique : il doit y en avoir autant que dans la sauvegarde.
 
 C'est **tout ou rien** : si une erreur survient ou si les comptes diffèrent, tout est annulé et la base visée reste exactement comme avant. Tant qu'un contrôle des étapes 1 à 3 échoue, rien n'est touché.
 
 Seules les **données** sont restaurées. La structure de la base (tables, droits, fonctions) vient toujours des migrations de `supabase/migrations`, que la base visée doit **déjà** avoir. L'historique des migrations de la base visée n'est pas touché non plus.
+
+Seules les données **de Nova** sont restaurées : celles du schéma `public` (demandes, historique, catégories, coordonnées, journal technique…) et les comptes de connexion (schéma `auth`). La sauvegarde contient aussi les tables internes de Supabase (stockage de fichiers, tâches planifiées…) : Nova ne s'en sert pas, Supabase les protège (la restauration n'a pas le droit de les vider), et la restauration les laisse donc telles quelles dans la base visée.
 
 La tâche ne publie rien et n'écrit aucune ligne dans le journal technique. Ses journaux d'exécution sont **publics**, comme le dépôt : ils ne montrent que les étapes, le nom de la sauvegarde, les nombres de demandes et de lignes d'historique, et la durée. Ils ne montrent ni secret, ni identifiant de projet, ni aucune donnée de demandeur.
 
@@ -149,7 +151,8 @@ Les autres commandes d'installation restent utilisables sur dev si besoin. Par e
 | « …ce n'est pas une sauvegarde de Nova… » ou « …est incomplet… » | Le fichier n'est pas une sauvegarde complète : choisissez une autre sauvegarde. |
 | « Une table ou une colonne de la sauvegarde manque dans la base… » | La base est inchangée. Le plus souvent, la base visée a moins de migrations que prod : appliquez-les ([étape 3](#3-avant-un-essai--dev-a-toutes-les-migrations)), puis relancez. Si l'erreur revient alors que les migrations sont à jour, la table en cause est sans doute dans le schéma `auth`, géré par Supabase et non par nos migrations : c'est une différence de version de Supabase entre les deux projets. Ne forcez rien : notez l'heure et le numéro de l'exécution pour le support. |
 | « …ne compte pas N demandes et M lignes d'historique comme la sauvegarde… » | Restauration annulée, base inchangée. Ne recommencez pas tout de suite : notez l'heure et le numéro de l'exécution pour le support. |
-| « La restauration a échoué (code d'erreur PostgreSQL …) » ou « Droits insuffisants… » ou « …s'est interrompue… » | Restauration annulée, base inchangée. Relancez une fois ; si cela se reproduit, notez le code, l'heure et le numéro de l'exécution pour le support. |
+| « Droits insuffisants sur la base … (code 42501, à l'étape « … ») » | Restauration annulée, base inchangée. Ce n'est pas l'adresse (la connexion a réussi) : Supabase refuse une opération à l'étape citée (par exemple le vidage d'une table). Ne relancez pas : notez l'étape, l'heure et le numéro de l'exécution pour le support. |
+| « La restauration a échoué (code d'erreur PostgreSQL …, à l'étape « … ») » ou « …s'est interrompue… » | Restauration annulée, base inchangée. Relancez une fois ; si cela se reproduit, notez le code, l'étape, l'heure et le numéro de l'exécution pour le support. |
 
 ### Essais de restauration
 

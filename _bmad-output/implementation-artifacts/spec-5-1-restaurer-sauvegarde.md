@@ -123,3 +123,10 @@ context:
 
 **Manual checks:**
 - Aurel lance la restauration sur dev, ouvre l'application dev, compare quelques demandes et leur historique avec prod, puis note date et durée dans `docs/maintenance.md`.
+
+### Correctif après le premier essai réel (27 nov. 2026)
+
+- Symptôme : deux essais sur dev arrêtés par « Droits insuffisants sur la base dev (code 42501) », adresse vérifiée par Aurel (bon projet, *Session pooler*, bon mot de passe).
+- Cause : l'export `--data-only` de la CLI 3.0.0 n'exclut que quelques schémas (liste lue dans le binaire de la CLI) : il contient aussi `storage`, `cron`, `net`, `supabase_functions`… Le script vidait et rechargeait **toutes** les tables de l'export, et remettait à jour toutes ses séquences, y compris celles des schémas gérés par Supabase, que le rôle `postgres` n'a pas le droit de modifier. La « Design Note » « vider exactement les tables présentes dans la sauvegarde » allait trop loin.
+- Correctif : seules les tables et séquences des schémas `public` et `auth` sont vidées et rechargées (`auth.schema_migrations` exclue) ; le reste de l'export est ignoré. En cas d'échec au chargement, le message nomme l'étape (« vidage de la table … », « chargement de la table … », « remise à jour de la séquence … », « réglage … »), déduite du numéro de ligne donné par psql et du SQL écrit par le script, sans jamais afficher un message du serveur ni une donnée. Le message 42501 ne renvoie plus vers l'adresse (la connexion a réussi).
+- Non vérifié sur une vraie base : la cause exacte du refus n'a pas pu être lue (psql n'affiche que le code, volontairement). Si le refus persiste, le nouveau message dira à quelle étape.
